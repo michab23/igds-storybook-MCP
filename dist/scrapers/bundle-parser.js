@@ -23,10 +23,48 @@ export async function fetchBundle(framework) {
         const bundleUrl = `${BASE_URL}/${framework}/assets/${scriptMatch[1]}`;
         console.error(`Fetching ${framework} bundle from: ${bundleUrl}`);
         const bundleResponse = await fetch(bundleUrl);
-        if (bundleResponse.ok)
-            return bundleResponse.text();
+        if (bundleResponse.ok) {
+            const entryCode = await bundleResponse.text();
+            // For React, also fetch the component chunks
+            if (framework === 'react') {
+                return await fetchReactChunks(entryCode, `${BASE_URL}/${framework}/assets`);
+            }
+            return entryCode;
+        }
     }
     throw new Error(`Could not find ${framework} bundle`);
+}
+async function fetchReactChunks(entryCode, assetsBase) {
+    // Extract chunk filenames from the entry code
+    const chunkPattern = /\.\/([A-Za-z][A-Za-z0-9_-]+-[A-Za-z0-9_-]+\.js)/g;
+    const chunks = new Set();
+    let match;
+    while ((match = chunkPattern.exec(entryCode)) !== null) {
+        chunks.add(match[1]);
+    }
+    console.error(`Found ${chunks.size} React chunks to fetch`);
+    // Fetch all chunks and combine
+    const chunkCodes = [entryCode];
+    let fetched = 0;
+    for (const chunk of chunks) {
+        try {
+            const chunkUrl = `${assetsBase}/${chunk}`;
+            const resp = await fetch(chunkUrl);
+            if (resp.ok) {
+                const code = await resp.text();
+                chunkCodes.push(code);
+                fetched++;
+                if (fetched % 10 === 0) {
+                    console.error(`  Fetched ${fetched}/${chunks.size} chunks...`);
+                }
+            }
+        }
+        catch (e) {
+            // Skip failed chunks
+        }
+    }
+    console.error(`Fetched ${fetched}/${chunks.size} React chunks`);
+    return chunkCodes.join('\n');
 }
 export function parseBundle(framework, bundleCode) {
     const components = new Map();
@@ -34,6 +72,13 @@ export function parseBundle(framework, bundleCode) {
     if (framework === 'core-web') {
         const metadataComponents = extractFromMetadata(bundleCode, framework);
         for (const [name, source] of metadataComponents) {
+            components.set(name, source);
+        }
+    }
+    // For React, try docgenInfo extraction first
+    if (framework === 'react') {
+        const docgenComponents = extractFromDocgenInfo(bundleCode);
+        for (const [name, source] of docgenComponents) {
             components.set(name, source);
         }
     }
@@ -81,6 +126,96 @@ export function parseBundle(framework, bundleCode) {
         }
     }
     return { framework, components, rawBundle: bundleCode };
+}
+function extractFromDocgenInfo(bundleCode) {
+    const components = new Map();
+    // Find all __docgenInfo blocks by brace counting
+    const searchStr = '.__docgenInfo={';
+    let searchPos = 0;
+    while (true) {
+        const idx = bundleCode.indexOf(searchStr, searchPos);
+        if (idx === -1)
+            break;
+        // Find the variable name before .__docgenInfo
+        let varEnd = idx;
+        while (varEnd > 0 && bundleCode[varEnd - 1] !== ';' && bundleCode[varEnd - 1] !== ',' && bundleCode[varEnd - 1] !== ' ' && bundleCode[varEnd - 1] !== '\n') {
+            varEnd--;
+        }
+        const varName = bundleCode.substring(varEnd, idx);
+        // Find the start of the object
+        const objStart = idx + searchStr.length - 1; // position of {
+        // Count braces to find the end
+        let depth = 1;
+        let pos = objStart + 1;
+        while (pos < bundleCode.length && depth > 0) {
+            if (bundleCode[pos] === '{')
+                depth++;
+            if (bundleCode[pos] === '}')
+                depth--;
+            pos++;
+        }
+        const docgenStr = bundleCode.substring(objStart, pos);
+        // Extract displayName
+        const displayNameMatch = docgenStr.match(/displayName:"([^"]+)"/);
+        if (!displayNameMatch) {
+            searchPos = idx + 1;
+            continue;
+        }
+        const displayName = displayNameMatch[1];
+        // Extract props - find props:{ and count braces
+        const propsIdx = docgenStr.indexOf(',props:{');
+        const properties = [];
+        if (propsIdx !== -1) {
+            const propsStart = propsIdx + 7; // position of {
+            let propsDepth = 1;
+            let propsPos = propsStart + 1;
+            while (propsPos < docgenStr.length && propsDepth > 0) {
+                if (docgenStr[propsPos] === '{')
+                    propsDepth++;
+                if (docgenStr[propsPos] === '}')
+                    propsDepth--;
+                propsPos++;
+            }
+            const propsStr = docgenStr.substring(propsStart + 1, propsPos - 1);
+            // Now parse individual props
+            // Each prop starts with word: at depth 1
+            const propEntries = propsStr.split(/(?<=\}),\s*(?=\w+:\{)/);
+            for (const entry of propEntries) {
+                const propMatch = entry.match(/^(\w+):\{required:(!0|!1),tsType:\{name:"([^"]+)"/);
+                if (propMatch) {
+                    properties.push({
+                        name: propMatch[1],
+                        type: propMatch[3],
+                        attribute: propMatch[1],
+                    });
+                }
+            }
+        }
+        // Extract tag name
+        const tagNamePattern = new RegExp(`${varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}=[^(]*\\([^)]*tagName:(\\w+\\.\\w+)`);
+        const tagMatch = bundleCode.match(tagNamePattern);
+        let tagName = `igds-${displayName.toLowerCase()}`;
+        if (tagMatch) {
+            const tagRef = tagMatch[1];
+            const tagParts = tagRef.split('.');
+            if (tagParts.length === 2) {
+                tagName = `igds-${tagParts[1].replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '')}`;
+            }
+        }
+        components.set(displayName, {
+            className: displayName,
+            tagName,
+            baseClass: 'React.Component',
+            properties,
+            states: [],
+            queries: [],
+            cssStyles: [],
+            constructorDefaults: {},
+            isFormAssociated: false,
+        });
+        searchPos = pos;
+    }
+    return components;
 }
 function extractFromMetadata(bundleCode, framework) {
     const components = new Map();

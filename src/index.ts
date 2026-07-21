@@ -456,7 +456,10 @@ server.tool(
         type: 'text' as const,
         text: JSON.stringify({
           mode: useCache ? 'cached' : 'live',
-          totalComponents: Object.values(stats).reduce((sum, s) => sum + s.docs, 0),
+          totalComponents: Object.values(stats).reduce((sum, s) => {
+            if (typeof s === 'object' && 'docs' in s) return sum + s.docs;
+            return sum;
+          }, 0),
           totalStories,
           stats,
         }, null, 2),

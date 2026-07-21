@@ -120,23 +120,23 @@ export class CachedDataLoader {
 
   getStats(): Record<StorybookFramework, { docs: number; source: number; stories: number }> {
     const data = this.load();
-    return {
-      angular: {
-        docs: Object.keys(data.angular).length,
-        source: Object.keys(data.sourceCode?.angular || {}).length,
-        stories: Object.keys(data.storyExamples?.angular || {}).length,
-      },
-      react: {
-        docs: Object.keys(data.react).length,
-        source: Object.keys(data.sourceCode?.react || {}).length,
-        stories: Object.keys(data.storyExamples?.react || {}).length,
-      },
-      'core-web': {
-        docs: Object.keys(data['core-web']).length,
-        source: Object.keys(data.sourceCode?.['core-web'] || {}).length,
-        stories: Object.keys(data.storyExamples?.['core-web'] || {}).length,
-      },
-    };
+    const stats = {} as Record<StorybookFramework, { docs: number; source: number; stories: number }>;
+    
+    for (const fw of ['angular', 'react', 'core-web'] as StorybookFramework[]) {
+      const storyData = data.storyExamples?.[fw] || {};
+      let totalStories = 0;
+      for (const stories of Object.values(storyData)) {
+        totalStories += stories.length;
+      }
+      
+      stats[fw] = {
+        docs: Object.keys(data[fw]).length,
+        source: Object.keys(data.sourceCode?.[fw] || {}).length,
+        stories: totalStories,
+      };
+    }
+    
+    return stats;
   }
 
   getScrapedAt(): string {
