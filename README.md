@@ -47,8 +47,10 @@ Replace `<path-to-project>` with the actual path to this project on your machine
 ## Using with MCP Inspector
 
 ```bash
-npx @modelcontextprotocol/inspector --transport stdio -- node dist/index.js
+npm run inspector
 ```
+
+Opens the Inspector web UI at `http://localhost:6274` where you can test all tools interactively.
 
 ## Running over HTTP/SSE
 
