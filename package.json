@@ -12,15 +12,24 @@
     "http": "tsx src/http-server.ts",
     "inspector": "npx @modelcontextprotocol/inspector --transport stdio -- node dist/index.js"
   },
-  "keywords": ["mcp", "storybook", "igds", "design-system"],
+  "keywords": [
+    "mcp",
+    "storybook",
+    "igds",
+    "design-system"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@types/node": "^26.1.1",
+    "express": "^5.2.1",
     "playwright": "^1.61.1",
     "tsx": "^4.23.1",
     "typescript": "^7.0.2",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.1.1"
   }
 }
