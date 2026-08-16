@@ -1,9 +1,10 @@
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import { StorybookFramework, ComponentDocs, ComponentSource, StoryVariant, StorybookEntry, StorybookIndex } from './types.js';
+import { StorybookFramework, ComponentDocs, ComponentSource, StoryVariant, StorybookEntry, StorybookIndex, ZeroheightData } from './types.js';
 
 const DATA_DIR = join(process.cwd(), 'data');
 const DATA_FILE = join(DATA_DIR, 'igds-storybook-data.json');
+const ZEROHEIGHT_DATA_FILE = join(DATA_DIR, 'zeroheight-data.json');
 
 interface CachedData {
   angular: Record<string, ComponentDocs>;
@@ -17,6 +18,7 @@ interface CachedData {
 
 export class CachedDataLoader {
   private data: CachedData | null = null;
+  private zeroheightData: ZeroheightData | null = null;
 
   isAvailable(): boolean {
     return existsSync(DATA_FILE);
@@ -142,5 +144,55 @@ export class CachedDataLoader {
   getScrapedAt(): string {
     const data = this.load();
     return data.scrapedAt;
+  }
+
+  isZeroheightAvailable(): boolean {
+    return existsSync(ZEROHEIGHT_DATA_FILE);
+  }
+
+  loadZeroheight(): ZeroheightData | null {
+    if (this.zeroheightData) {
+      return this.zeroheightData;
+    }
+
+    if (!this.isZeroheightAvailable()) {
+      return null;
+    }
+
+    const raw = readFileSync(ZEROHEIGHT_DATA_FILE, 'utf-8');
+    this.zeroheightData = JSON.parse(raw) as ZeroheightData;
+    return this.zeroheightData;
+  }
+
+  getZeroheightComponent(storybookName: string): any | undefined {
+    const zhData = this.loadZeroheight();
+    if (!zhData) return undefined;
+
+    // Search by name or cross-reference
+    for (const component of Object.values(zhData.components)) {
+      if (component.name === storybookName) {
+        return component;
+      }
+      if (component.storybookCrossRef) {
+        for (const ref of Object.values(component.storybookCrossRef)) {
+          if (ref === storybookName) {
+            return component;
+          }
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  getZeroheightStats(): { components: number; pages: number; categories: number } | null {
+    const zhData = this.loadZeroheight();
+    if (!zhData) return null;
+
+    return {
+      components: Object.keys(zhData.components).length,
+      pages: Object.keys(zhData.pages).length,
+      categories: zhData.categories.length,
+    };
   }
 }

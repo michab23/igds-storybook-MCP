@@ -1,12 +1,15 @@
 import { chromium } from 'playwright';
 import { writeFileSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { StorybookFramework, StorybookIndex, ComponentDocs, ArgType, StoryVariant } from './types.js';
+import { StorybookFramework, StorybookIndex, ComponentDocs, ArgType, StoryVariant, ZeroheightData } from './types.js';
 import { fetchBundle, parseBundle, ParsedBundle } from './scrapers/bundle-parser.js';
+import { scrapeAllZeroheight } from './scrapers/zeroheight-scraper.js';
+import { mapCrossReferences } from './scrapers/cross-reference.js';
 
 const BASE_URL = 'https://igds-storybook.globalbit.dev/develop';
 const DATA_DIR = join(process.cwd(), 'data');
 const DATA_FILE = join(DATA_DIR, 'igds-storybook-data.json');
+const ZEROHEIGHT_DATA_FILE = join(DATA_DIR, 'zeroheight-data.json');
 
 interface ComponentSource {
   className: string;
@@ -363,6 +366,27 @@ async function main() {
     console.log(`  ${framework}: ${docsCount} docs, ${sourceCount} source, ${storyCount} stories`);
   }
   console.log(`Data saved to ${DATA_FILE}`);
+  
+  // Phase 4: Zeroheight Scraping
+  console.log('\n=== Phase 4: Zeroheight Scraping ===');
+  
+  let zeroheightData: ZeroheightData;
+  if (existsSync(ZEROHEIGHT_DATA_FILE)) {
+    console.log('Loading existing Zeroheight data...');
+    zeroheightData = JSON.parse(readFileSync(ZEROHEIGHT_DATA_FILE, 'utf-8'));
+    console.log(`  ${Object.keys(zeroheightData.components).length} components, ${Object.keys(zeroheightData.pages).length} pages`);
+  } else {
+    console.log('Scraping Zeroheight...');
+    zeroheightData = await scrapeAllZeroheight();
+    zeroheightData = mapCrossReferences(zeroheightData);
+    
+    writeFileSync(ZEROHEIGHT_DATA_FILE, JSON.stringify(zeroheightData, null, 2));
+    console.log(`  Scraped ${Object.keys(zeroheightData.components).length} components`);
+    console.log(`  Scraped ${Object.keys(zeroheightData.pages).length} pages`);
+    console.log(`  Found ${zeroheightData.categories.length} categories`);
+  }
+  
+  console.log('\nAll scraping completed!');
 }
 
 main().catch(console.error);

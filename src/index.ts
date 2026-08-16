@@ -6,10 +6,13 @@ import { z } from 'zod';
 import { CachedDataLoader } from './cached-loader.js';
 import { DataStore } from './data-store.js';
 import { StorybookFramework, ComponentDocs } from './types.js';
+import { ZeroheightLoader } from './zeroheight-loader.js';
 
 const cachedLoader = new CachedDataLoader();
 const liveStore = new DataStore();
+const zeroheightLoader = new ZeroheightLoader();
 let useCache = false;
+let useZeroheight = false;
 
 const server = new McpServer({
   name: 'igds-storybook',
@@ -20,6 +23,12 @@ const server = new McpServer({
 if (cachedLoader.isAvailable()) {
   useCache = true;
   console.error('Using cached storybook data');
+}
+
+// Check for Zeroheight data on startup
+if (zeroheightLoader.isAvailable()) {
+  useZeroheight = true;
+  console.error('Using cached Zeroheight data');
 }
 
 // Tool: Load storybook data
@@ -451,17 +460,253 @@ server.tool(
       }
     }
     
+    const result: any = {
+      mode: useCache ? 'cached' : 'live',
+      totalComponents: Object.values(stats).reduce((sum, s) => {
+        if (typeof s === 'object' && 'docs' in s) return sum + s.docs;
+        return sum;
+      }, 0),
+      totalStories,
+      stats,
+    };
+    
+    // Add Zeroheight stats if available
+    if (useZeroheight) {
+      try {
+        const zhStats = zeroheightLoader.getStats();
+        result.zeroheight = zhStats;
+      } catch (e) {
+        // Zeroheight data not available
+      }
+    }
+    
+    return {
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify(result, null, 2),
+      }],
+    };
+  }
+);
+
+// Zeroheight Tools
+
+// Tool: List Zeroheight categories
+server.tool(
+  'zeroheight-list-categories',
+  'List all component categories from Zeroheight design system documentation',
+  {},
+  async () => {
+    if (!useZeroheight) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: 'Zeroheight data not available. Run "npm run scrape" first.',
+        }],
+        isError: true,
+      };
+    }
+    
+    const categories = zeroheightLoader.listCategories();
+    return {
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify({ categories }, null, 2),
+      }],
+    };
+  }
+);
+
+// Tool: List Zeroheight components
+server.tool(
+  'zeroheight-list-components',
+  'List components from Zeroheight (optionally filtered by category)',
+  {
+    category: z.string().optional().describe('Filter by category name'),
+  },
+  async ({ category }) => {
+    if (!useZeroheight) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: 'Zeroheight data not available. Run "npm run scrape" first.',
+        }],
+        isError: true,
+      };
+    }
+    
+    const components = zeroheightLoader.listComponents(category);
     return {
       content: [{
         type: 'text' as const,
         text: JSON.stringify({
-          mode: useCache ? 'cached' : 'live',
-          totalComponents: Object.values(stats).reduce((sum, s) => {
-            if (typeof s === 'object' && 'docs' in s) return sum + s.docs;
-            return sum;
-          }, 0),
-          totalStories,
-          stats,
+          category: category || 'all',
+          count: components.length,
+          components: components.map(c => ({
+            name: c.name,
+            category: c.category,
+            url: c.url,
+            storybookRef: c.storybookCrossRef,
+          })),
+        }, null, 2),
+      }],
+    };
+  }
+);
+
+// Tool: Get Zeroheight component
+server.tool(
+  'zeroheight-get-component',
+  'Get full component documentation from Zeroheight',
+  {
+    componentName: z.string().describe('Component name'),
+  },
+  async ({ componentName }) => {
+    if (!useZeroheight) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: 'Zeroheight data not available. Run "npm run scrape" first.',
+        }],
+        isError: true,
+      };
+    }
+    
+    const component = zeroheightLoader.getComponent(componentName);
+    if (!component) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Component "${componentName}" not found in Zeroheight.`,
+        }],
+        isError: true,
+      };
+    }
+    
+    return {
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify(component, null, 2),
+      }],
+    };
+  }
+);
+
+// Tool: Get Zeroheight section
+server.tool(
+  'zeroheight-get-section',
+  'Get a specific section (design/code/usage/accessibility) for a component',
+  {
+    componentName: z.string().describe('Component name'),
+    section: z.enum(['design', 'code', 'usage', 'accessibility']).describe('Section to retrieve'),
+  },
+  async ({ componentName, section }) => {
+    if (!useZeroheight) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: 'Zeroheight data not available. Run "npm run scrape" first.',
+        }],
+        isError: true,
+      };
+    }
+    
+    const sectionData = zeroheightLoader.getComponentSection(componentName, section);
+    if (!sectionData) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Section "${section}" not found for component "${componentName}".`,
+        }],
+        isError: true,
+      };
+    }
+    
+    return {
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify({
+          component: componentName,
+          section,
+          ...sectionData,
+        }, null, 2),
+      }],
+    };
+  }
+);
+
+// Tool: Search Zeroheight
+server.tool(
+  'zeroheight-search',
+  'Search across all Zeroheight content',
+  {
+    query: z.string().describe('Search query'),
+  },
+  async ({ query }) => {
+    if (!useZeroheight) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: 'Zeroheight data not available. Run "npm run scrape" first.',
+        }],
+        isError: true,
+      };
+    }
+    
+    const results = zeroheightLoader.searchComponents(query);
+    return {
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify({
+          query,
+          count: results.length,
+          results: results.map(c => ({
+            name: c.name,
+            category: c.category,
+            url: c.url,
+            storybookRef: c.storybookCrossRef,
+          })),
+        }, null, 2),
+      }],
+    };
+  }
+);
+
+// Tool: Get Storybook cross-reference
+server.tool(
+  'zeroheight-get-storybook-ref',
+  'Get Storybook cross-references for a Zeroheight component',
+  {
+    componentName: z.string().describe('Zeroheight component name'),
+  },
+  async ({ componentName }) => {
+    if (!useZeroheight) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: 'Zeroheight data not available. Run "npm run scrape" first.',
+        }],
+        isError: true,
+      };
+    }
+    
+    const ref = zeroheightLoader.getStorybookRef(componentName);
+    if (!ref) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `No Storybook reference found for "${componentName}".`,
+        }],
+        isError: true,
+      };
+    }
+    
+    return {
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify({
+          componentName,
+          storybook: ref,
         }, null, 2),
       }],
     };

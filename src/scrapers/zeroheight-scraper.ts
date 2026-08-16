@@ -7,23 +7,23 @@ const BASE_URL = 'https://igds.gov.il/4988d5140';
 const IMAGES_DIR = join(process.cwd(), 'data', 'images', 'zeroheight');
 
 let browser: any = null;
-let page: Page | null = null;
+let currentPage: any = null;
 
-async function getBrowser(): Promise<Page> {
-  if (page) return page;
+async function getBrowser(): Promise<any> {
+  if (currentPage) return currentPage;
   
   const { chromium } = await import('playwright');
   browser = await chromium.launch({ headless: true });
-  page = await browser.newPage();
+  currentPage = await browser.newPage();
   
-  return page;
+  return currentPage;
 }
 
 export async function closeBrowser(): Promise<void> {
   if (browser) {
     await browser.close();
     browser = null;
-    page = null;
+    currentPage = null;
   }
 }
 
@@ -237,7 +237,7 @@ async function extractSection(sectionType: string, componentName: string): Promi
     return text.substring(0, 10000);
   });
   
-  const images = await p.evaluate(async (componentName: string, sectionType: string) => {
+  const images = await p.evaluate(() => {
     const imgs = Array.from(document.querySelectorAll('img'));
     const imageUrls: string[] = [];
     
@@ -250,7 +250,7 @@ async function extractSection(sectionType: string, componentName: string): Promi
     }
     
     return imageUrls;
-  }, componentName, sectionType);
+  });
   
   const codeExamples = await p.evaluate(() => {
     const codeBlocks = Array.from(document.querySelectorAll('pre, code'));
