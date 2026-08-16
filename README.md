@@ -46,11 +46,25 @@ Replace `<path-to-project>` with the actual path to this project on your machine
 
 ## Using with MCP Inspector
 
+### Option 1: Stdio (default)
+
 ```bash
 npm run inspector
 ```
 
-Opens the Inspector web UI at `http://localhost:6274` where you can test all tools interactively.
+Opens the Inspector web UI at `http://localhost:6274` and connects via stdio automatically.
+
+### Option 2: HTTP/SSE
+
+First start the HTTP server, then connect the Inspector to it:
+
+```bash
+# Terminal 1: Start HTTP server
+npm run http
+
+# Terminal 2: Start Inspector and connect to HTTP server
+npx @modelcontextprotocol/inspector --transport sse http://localhost:3000/sse
+```
 
 ## Running over HTTP/SSE
 
