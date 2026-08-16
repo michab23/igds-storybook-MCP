@@ -1,4 +1,4 @@
-import { StorybookFramework, ComponentDocs, ComponentSource, StoryVariant, StorybookEntry, StorybookIndex } from './types.js';
+import { StorybookFramework, ComponentDocs, ComponentSource, StoryVariant, StorybookEntry, StorybookIndex, ZeroheightData } from './types.js';
 interface CachedData {
     angular: Record<string, ComponentDocs>;
     react: Record<string, ComponentDocs>;
@@ -10,6 +10,7 @@ interface CachedData {
 }
 export declare class CachedDataLoader {
     private data;
+    private zeroheightData;
     isAvailable(): boolean;
     load(): CachedData;
     getComponents(framework: StorybookFramework): Map<string, ComponentDocs>;
@@ -26,6 +27,14 @@ export declare class CachedDataLoader {
         stories: number;
     }>;
     getScrapedAt(): string;
+    isZeroheightAvailable(): boolean;
+    loadZeroheight(): ZeroheightData | null;
+    getZeroheightComponent(storybookName: string): any | undefined;
+    getZeroheightStats(): {
+        components: number;
+        pages: number;
+        categories: number;
+    } | null;
 }
 export {};
 //# sourceMappingURL=cached-loader.d.ts.map

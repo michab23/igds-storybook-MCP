@@ -2,8 +2,10 @@ import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 const DATA_DIR = join(process.cwd(), 'data');
 const DATA_FILE = join(DATA_DIR, 'igds-storybook-data.json');
+const ZEROHEIGHT_DATA_FILE = join(DATA_DIR, 'zeroheight-data.json');
 export class CachedDataLoader {
     data = null;
+    zeroheightData = null;
     isAvailable() {
         return existsSync(DATA_FILE);
     }
@@ -105,6 +107,49 @@ export class CachedDataLoader {
     getScrapedAt() {
         const data = this.load();
         return data.scrapedAt;
+    }
+    isZeroheightAvailable() {
+        return existsSync(ZEROHEIGHT_DATA_FILE);
+    }
+    loadZeroheight() {
+        if (this.zeroheightData) {
+            return this.zeroheightData;
+        }
+        if (!this.isZeroheightAvailable()) {
+            return null;
+        }
+        const raw = readFileSync(ZEROHEIGHT_DATA_FILE, 'utf-8');
+        this.zeroheightData = JSON.parse(raw);
+        return this.zeroheightData;
+    }
+    getZeroheightComponent(storybookName) {
+        const zhData = this.loadZeroheight();
+        if (!zhData)
+            return undefined;
+        // Search by name or cross-reference
+        for (const component of Object.values(zhData.components)) {
+            if (component.name === storybookName) {
+                return component;
+            }
+            if (component.storybookCrossRef) {
+                for (const ref of Object.values(component.storybookCrossRef)) {
+                    if (ref === storybookName) {
+                        return component;
+                    }
+                }
+            }
+        }
+        return undefined;
+    }
+    getZeroheightStats() {
+        const zhData = this.loadZeroheight();
+        if (!zhData)
+            return null;
+        return {
+            components: Object.keys(zhData.components).length,
+            pages: Object.keys(zhData.pages).length,
+            categories: zhData.categories.length,
+        };
     }
 }
 //# sourceMappingURL=cached-loader.js.map

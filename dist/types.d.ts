@@ -77,4 +77,42 @@ export interface ScrapedData {
     react: Map<string, ComponentDocs>;
     'core-web': Map<string, ComponentDocs>;
 }
+export interface ZeroheightSection {
+    title: string;
+    content: string;
+    images: string[];
+    codeExamples: string[];
+}
+export interface ZeroheightComponent {
+    name: string;
+    slug: string;
+    url: string;
+    category: string;
+    storybookCrossRef?: {
+        angular?: string;
+        react?: string;
+        'core-web'?: string;
+    };
+    sections: {
+        design?: ZeroheightSection;
+        code?: ZeroheightSection;
+        usage?: ZeroheightSection;
+        accessibility?: ZeroheightSection;
+    };
+}
+export interface ZeroheightPage {
+    id: string;
+    title: string;
+    slug: string;
+    url: string;
+    type: 'component' | 'guide' | 'template' | 'brand' | 'designers' | 'developers' | 'marketers';
+    content?: string;
+    images?: string[];
+}
+export interface ZeroheightData {
+    components: Record<string, ZeroheightComponent>;
+    pages: Record<string, ZeroheightPage>;
+    categories: string[];
+    scrapedAt: string;
+}
 //# sourceMappingURL=types.d.ts.map
