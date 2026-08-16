@@ -55,33 +55,8 @@ npx @modelcontextprotocol/inspector --transport stdio -- node dist/index.js
 To expose the MCP server over HTTP/SSE instead of stdio:
 
 ```bash
-# Install dependencies for HTTP transport
-npm install @modelcontextprotocol/sdk express
-
 # Run with HTTP transport
-npx tsx -e "
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
-import express from 'express';
-
-const app = express();
-app.use(express.json());
-
-const server = new McpServer({ name: 'igds-storybook', version: '1.0.0' });
-
-// ... (register tools from src/index.ts)
-
-app.get('/sse', async (req, res) => {
-  const transport = new SSEServerTransport('/messages', res);
-  await server.connect(transport);
-});
-
-app.post('/messages', async (req, res) => {
-  // Handle messages
-});
-
-app.listen(3000, () => console.log('MCP server running on http://localhost:3000'));
-"
+npm run http
 ```
 
 Then connect to `http://localhost:3000/sse` from your MCP client.
