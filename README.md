@@ -54,7 +54,7 @@ npm run inspector
 
 Opens the Inspector web UI at `http://localhost:6274` and connects via stdio automatically.
 
-### Option 2: HTTP/SSE
+### Option 2: HTTP (Streamable HTTP)
 
 First start the HTTP server, then connect the Inspector to it:
 
@@ -63,19 +63,19 @@ First start the HTTP server, then connect the Inspector to it:
 npm run http
 
 # Terminal 2: Start Inspector and connect to HTTP server
-npx @modelcontextprotocol/inspector --transport sse http://localhost:3000/sse
+npx @modelcontextprotocol/inspector --transport streamable-http http://localhost:3000/mcp
 ```
 
-## Running over HTTP/SSE
+## Running over HTTP
 
-To expose the MCP server over HTTP/SSE instead of stdio:
+To expose the MCP server over HTTP instead of stdio:
 
 ```bash
 # Run with HTTP transport
 npm run http
 ```
 
-Then connect to `http://localhost:3000/sse` from your MCP client.
+Then connect to `http://localhost:3000/mcp` from your MCP client.
 
 ## MCP Tools
 
