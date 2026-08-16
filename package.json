@@ -7,8 +7,10 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
-    "start": "node dist/index.ts",
-    "scrape": "tsx src/scrape-all.ts"
+    "start": "node dist/index.js",
+    "scrape": "tsx src/scrape-all.ts",
+    "http": "tsx src/http-server.ts",
+    "inspector": "npx @modelcontextprotocol/inspector --transport stdio -- node dist/index.js"
   },
   "keywords": ["mcp", "storybook", "igds", "design-system"],
   "author": "",
