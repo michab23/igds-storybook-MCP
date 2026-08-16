@@ -36,17 +36,55 @@ Add to your `claude_desktop_config.json`:
   "mcpServers": {
     "igds-storybook": {
       "command": "node",
-      "args": ["C:\\Users\\michaelb\\Documents\\New OpenCode Project\\igds-storybook-mcp\\dist\\index.js"]
+      "args": ["<path-to-project>/dist/index.js"]
     }
   }
 }
 ```
+
+Replace `<path-to-project>` with the actual path to this project on your machine.
 
 ## Using with MCP Inspector
 
 ```bash
 npx @modelcontextprotocol/inspector --transport stdio -- node dist/index.js
 ```
+
+## Running over HTTP/SSE
+
+To expose the MCP server over HTTP/SSE instead of stdio:
+
+```bash
+# Install dependencies for HTTP transport
+npm install @modelcontextprotocol/sdk express
+
+# Run with HTTP transport
+npx tsx -e "
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import express from 'express';
+
+const app = express();
+app.use(express.json());
+
+const server = new McpServer({ name: 'igds-storybook', version: '1.0.0' });
+
+// ... (register tools from src/index.ts)
+
+app.get('/sse', async (req, res) => {
+  const transport = new SSEServerTransport('/messages', res);
+  await server.connect(transport);
+});
+
+app.post('/messages', async (req, res) => {
+  // Handle messages
+});
+
+app.listen(3000, () => console.log('MCP server running on http://localhost:3000'));
+"
+```
+
+Then connect to `http://localhost:3000/sse` from your MCP client.
 
 ## MCP Tools
 
