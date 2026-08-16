@@ -9,107 +9,93 @@ This server exposes **17 tools** for querying IGDS components across:
 - **Storybook**: Angular, React, Core-Web frameworks with source code, props, and rendered examples
 - **Zeroheight**: Design guidelines, usage documentation, accessibility info, and images
 
-## Quick Start
+## Installation
 
 ```bash
-# Install dependencies
 npm install
+```
 
-# Scrape all data (Storybook + Zeroheight)
-npm run scrape
+## Running the Server
 
-# Build and run
+```bash
+# Build TypeScript
 npm run build
+
+# Start the MCP server
 npm run start
+```
+
+The server runs via stdio transport and connects to MCP clients.
+
+## Using with Claude Desktop
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "igds-storybook": {
+      "command": "node",
+      "args": ["C:\\Users\\michaelb\\Documents\\New OpenCode Project\\igds-storybook-mcp\\dist\\index.js"]
+    }
+  }
+}
+```
+
+## Using with MCP Inspector
+
+```bash
+npx @modelcontextprotocol/inspector --transport stdio -- node dist/index.js
 ```
 
 ## MCP Tools
 
 ### Storybook Tools
 
-| Tool | Description |
-|------|-------------|
-| `load-storybook` | Load Storybook data for a framework |
-| `list-components` | List components for a framework |
-| `get-component` | Get component docs with argTypes |
-| `get-component-source` | Get source code structure |
-| `get-component-css` | Get CSS styles |
-| `get-component-stories` | Get all story variants |
-| `get-story-examples` | Get rendered HTML examples |
-| `get-story` | Get story entry by ID |
-| `search-components` | Search across frameworks |
-| `compare-component` | Compare across Angular/React/Core-Web |
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `load-storybook` | Load Storybook data for a framework | `framework?`: angular/react/core-web |
+| `list-components` | List components for a framework | `framework`: angular/react/core-web |
+| `get-component` | Get component docs with argTypes | `framework`, `componentName` |
+| `get-component-source` | Get source code structure (properties, CSS, defaults) | `framework`, `componentName` |
+| `get-component-css` | Get CSS styles | `framework`, `componentName` |
+| `get-component-stories` | Get all story variants | `framework`, `componentName` |
+| `get-story-examples` | Get rendered HTML examples | `framework`, `componentName`, `storyName?` |
+| `get-story` | Get story entry by ID | `framework`, `storyId` |
+| `search-components` | Search across frameworks | `query` |
+| `compare-component` | Compare across Angular/React/Core-Web | `componentName` |
 
 ### Zeroheight Tools
 
-| Tool | Description |
-|------|-------------|
-| `zeroheight-list-categories` | List component categories |
-| `zeroheight-list-components` | List components (optionally by category) |
-| `zeroheight-get-component` | Get full component documentation |
-| `zeroheight-get-section` | Get design/code/usage/accessibility section |
-| `zeroheight-search` | Search Zeroheight content |
-| `zeroheight-get-storybook-ref` | Get Storybook cross-references |
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `zeroheight-list-categories` | List component categories | (none) |
+| `zeroheight-list-components` | List components | `category?` |
+| `zeroheight-get-component` | Get full component documentation | `componentName` |
+| `zeroheight-get-section` | Get design/code/usage/accessibility section | `componentName`, `section` |
+| `zeroheight-search` | Search Zeroheight content | `query` |
+| `zeroheight-get-storybook-ref` | Get Storybook cross-references | `componentName` |
 
 ### Utility
 
-| Tool | Description |
-|------|-------------|
-| `get-stats` | Get data statistics |
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `get-stats` | Get data statistics | (none) |
 
-## Data Sources
+## Data Included
 
-### Storybook
-
-Scrapes from `https://igds-storybook.globalbit.dev/develop/`:
+### Storybook (145 components)
 
 - **Angular**: 48 components, 473 stories, 75 source classes
 - **React**: 48 components, 425 stories, 68 source classes
 - **Core-Web**: 49 components, 435 stories, 53 source classes
 
-### Zeroheight
-
-Scrapes from `https://igds.gov.il/4988d5140/`:
+### Zeroheight (50+ components)
 
 - **7 categories**: Buttons, Input & Selection, Indicator & Status, Content Display, Navigation, Messaging, Data & Tables
-- **50+ components** with Design, Code, Usage, Accessibility sections
+- **Sections**: Design, Code, Usage, Accessibility for each component
 - **1000+ images** downloaded locally
 - **Bidirectional cross-references** to Storybook components
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────┐
-│  Scraping (npm run scrape)                          │
-│                                                     │
-│  1. Storybook index.json → Component list           │
-│  2. Playwright → argTypes, descriptions             │
-│  3. Bundle parser → Source code extraction           │
-│  4. Playwright → Story examples (HTML)              │
-│  5. Zeroheight scraper → Design docs + images       │
-│  6. Cross-reference mapping                         │
-│                                                     │
-│  Output: data/*.json                                │
-└──────────────────────┬──────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────┐
-│  MCP Server (17 tools via stdio)                    │
-│                                                     │
-│  CachedDataLoader ← igds-storybook-data.json        │
-│  ZeroheightLoader  ← zeroheight-data.json           │
-│                                                     │
-│  Returns JSON via MCP protocol                      │
-└─────────────────────────────────────────────────────┘
-```
-
-## Development
-
-```bash
-npm run build    # Compile TypeScript
-npm run dev      # Run in development mode
-npm run scrape   # Scrape all data (takes ~15-20 minutes)
-```
 
 ## Data Files
 
