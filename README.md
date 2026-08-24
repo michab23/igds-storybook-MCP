@@ -83,6 +83,36 @@ npm run build       # compile TypeScript to dist/
 }
 ```
 
+### Client-specific setup
+
+The JSON above is the shape most MCP clients (Claude Desktop, Gemini CLI) read directly. A couple of others use a different entry point:
+
+**Claude Code**
+
+```bash
+claude mcp add igds --scope project -- node <path-to-project>/dist/index.js
+```
+
+`--scope project` writes the entry to `.mcp.json` in the current repo so teammates get it via version control; drop the flag for a personal-only entry, or use `--scope user` to make it available across every project.
+
+**Gemini CLI** — add the same `mcpServers` block above to `.gemini/settings.json` (project) or `~/.gemini/settings.json` (user).
+
+**OpenCode** — different shape: `mcp` instead of `mcpServers`, and `command` is an array. Add to `opencode.json` in the workspace root:
+
+```json
+{
+  "mcp": {
+    "igds": {
+      "type": "local",
+      "command": ["node", "<path-to-project>/dist/index.js"],
+      "enabled": true
+    }
+  }
+}
+```
+
+Use an absolute path for `<path-to-project>` in all of the above — a relative one resolves against whatever working directory each tool happens to launch from.
+
 ### Connect over HTTP
 
 ```bash
