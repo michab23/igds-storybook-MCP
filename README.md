@@ -65,12 +65,16 @@ Once published, no cloning required:
 }
 ```
 
-Or against a local clone:
+Otherwise, build once locally — this doesn't change per client, every one of them below just needs to point `node` at the resulting file:
 
 ```bash
+git clone <your-fork-or-origin-url>
+cd igds-storybook-mcp
 npm install
-npm run build       # compile TypeScript to dist/
+npm run build       # produces dist/index.js
 ```
+
+Then use the generic config shape most MCP clients read directly:
 
 ```json
 {
@@ -85,7 +89,7 @@ npm run build       # compile TypeScript to dist/
 
 ### Client-specific setup
 
-The JSON above is the shape most MCP clients (Claude Desktop, Gemini CLI) read directly. A couple of others use a different entry point:
+A few tools use a different entry point or config shape instead of the generic block above:
 
 **Claude Code**
 
@@ -110,6 +114,23 @@ claude mcp add igds --scope project -- node <path-to-project>/dist/index.js
   }
 }
 ```
+
+**Kiro** — same `mcpServers` shape as the generic block, plus two Kiro-specific fields. Add to `.kiro/settings/mcp.json` (workspace) or `~/.kiro/settings/mcp.json` (user):
+
+```json
+{
+  "mcpServers": {
+    "igds": {
+      "command": "node",
+      "args": ["<path-to-project>/dist/index.js"],
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+`autoApprove` lists tool names Kiro should run without a confirmation prompt — leave it empty to confirm every call.
 
 Use an absolute path for `<path-to-project>` in all of the above — a relative one resolves against whatever working directory each tool happens to launch from.
 
