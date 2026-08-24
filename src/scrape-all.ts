@@ -5,6 +5,7 @@ import { StorybookFramework, StorybookIndex, ComponentDocs, ArgType, StoryVarian
 import { fetchBundle, parseBundle, ParsedBundle } from './scrapers/bundle-parser.js';
 import { scrapeAllZeroheight } from './scrapers/zeroheight-scraper.js';
 import { mapCrossReferences } from './scrapers/cross-reference.js';
+import { extractArgTypesFromPreview, extractStorySources, extractDocumentedApi, DocumentedComponentApi } from './scrapers/storybook-api.js';
 
 const BASE_URL = 'https://igds-storybook.globalbit.dev/develop';
 const DATA_DIR = join(process.cwd(), 'data');
@@ -14,9 +15,17 @@ const ZEROHEIGHT_DATA_FILE = join(DATA_DIR, 'zeroheight-data.json');
 interface ComponentSource {
   className: string;
   tagName: string;
-  properties: { name: string; type: string; attribute?: string; reflect?: boolean }[];
+  properties: {
+    name: string;
+    type: string;
+    attribute?: string;
+    reflect?: boolean;
+    defaultValue?: string;
+    description?: string;
+  }[];
   states: string[];
-  cssStyles: string[];
+  events?: { name: string; description?: string; type?: string }[];
+  slots?: { name: string; description?: string }[];
   constructorDefaults: Record<string, string>;
   isFormAssociated: boolean;
 }
@@ -28,6 +37,9 @@ interface ScrapedData {
   indexes: Record<StorybookFramework, StorybookIndex>;
   sourceCode: Record<StorybookFramework, Record<string, ComponentSource>>;
   storyExamples: Record<StorybookFramework, Record<string, StoryVariant[]>>;
+  /** IGDS's own hand-written per-framework API tables, keyed by the docs page they came
+   *  from (the top-level component name used to fetch that page). */
+  documentedApi: Record<StorybookFramework, Record<string, DocumentedComponentApi[]>>;
   scrapedAt: string;
 }
 
@@ -42,6 +54,10 @@ function loadExistingData(): ScrapedData {
     if (!data.storyExamples) {
       data.storyExamples = { angular: {}, react: {}, 'core-web': {} };
     }
+    // Ensure documentedApi exists
+    if (!data.documentedApi) {
+      data.documentedApi = { angular: {}, react: {}, 'core-web': {} };
+    }
     return data;
   }
   return {
@@ -51,6 +67,7 @@ function loadExistingData(): ScrapedData {
     indexes: {} as any,
     sourceCode: { angular: {}, react: {}, 'core-web': {} },
     storyExamples: { angular: {}, react: {}, 'core-web': {} },
+    documentedApi: { angular: {}, react: {}, 'core-web': {} },
     scrapedAt: new Date().toISOString(),
   };
 }
@@ -77,6 +94,13 @@ function getComponentsFromIndex(index: StorybookIndex): Map<string, string> {
       components.set(name, entry.id);
     }
   }
+
+  // For validating the pipeline end-to-end without committing to a full multi-hour run.
+  const limit = process.env.IGDS_SCRAPE_LIMIT ? Number(process.env.IGDS_SCRAPE_LIMIT) : undefined;
+  if (limit && limit > 0 && limit < components.size) {
+    return new Map([...components.entries()].slice(0, limit));
+  }
+
   return components;
 }
 
@@ -84,7 +108,8 @@ async function scrapeComponentDocs(
   page: any,
   framework: StorybookFramework,
   componentId: string,
-  componentName: string
+  componentName: string,
+  storyId?: string
 ): Promise<ComponentDocs> {
   const url = `${BASE_URL}/${framework}/iframe.html?id=${componentId}&viewMode=docs`;
   
@@ -93,7 +118,25 @@ async function scrapeComponentDocs(
     await page.waitForSelector('#storybook-docs', { timeout: 10000 });
     await page.waitForTimeout(1500);
     
-    // Improved argTypes extraction with proper type/description/default parsing
+    // Storybook's own runtime is authoritative: it has declared types, union `options`,
+    // real defaults and JSDoc descriptions. Fall back to reading the docs table only if
+    // the preview store is unavailable.
+    if (storyId) {
+      const fromPreview = await extractArgTypesFromPreview(page, storyId);
+      if (fromPreview.length) {
+        const description = await extractDescription(page);
+        return {
+          framework,
+          componentName,
+          title: componentName,
+          description,
+          argTypes: fromPreview,
+          stories: [],
+          url: `${BASE_URL}/${framework}/?path=/docs/${componentId}`,
+        };
+      }
+    }
+
     const argTypes = await page.evaluate(() => {
       const types: Array<{
         name: string;
@@ -101,7 +144,7 @@ async function scrapeComponentDocs(
         description?: string;
         defaultValue?: string;
         control?: string;
-        enumValues?: string[];
+        options?: string[];
       }> = [];
       
       const rows = document.querySelectorAll('.docblock-argstable-body tr');
@@ -159,26 +202,17 @@ async function scrapeComponentDocs(
         types.push({
           name,
           type: type || undefined,
-          description: undefined, // No descriptions in this Storybook
+          description: undefined, // The docs table carries no prose descriptions.
           defaultValue: defaultValue && defaultValue !== '-' ? defaultValue : undefined,
           control,
-          enumValues,
+          options: enumValues,
         });
       }
       
       return types;
     });
     
-    const description = await page.evaluate(() => {
-      const desc = document.querySelector('.docblock-description');
-      if (desc) return desc.textContent?.trim() || undefined;
-      const title = document.querySelector('.sbdocs-title');
-      if (title) {
-        const next = title.nextElementSibling;
-        if (next?.tagName === 'P') return next.textContent?.trim() || undefined;
-      }
-      return undefined;
-    });
+    const description = await extractDescription(page);
     
     return {
       framework, componentName, title: componentName, description, argTypes,
@@ -192,13 +226,29 @@ async function scrapeComponentDocs(
   }
 }
 
+async function extractDescription(page: any): Promise<string | undefined> {
+  return page.evaluate(() => {
+    const desc = document.querySelector('.docblock-description');
+    if (desc) return desc.textContent?.trim() || undefined;
+    const title = document.querySelector('.sbdocs-title');
+    if (title) {
+      const next = title.nextElementSibling;
+      if (next?.tagName === 'P') return next.textContent?.trim() || undefined;
+    }
+    return undefined;
+  });
+}
+
 async function main() {
   console.log('Starting IGDS Storybook scraping...');
   
   ensureDataDir();
   const data = loadExistingData();
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext();
+  // Opt-in only: disabling TLS verification is a real security regression on an untrusted
+  // network. It exists for corporate TLS-intercepting proxies where the site's real
+  // certificate is unavailable to configure via NODE_EXTRA_CA_CERTS (the correct fix).
+  const context = await browser.newContext({ ignoreHTTPSErrors: process.env.IGDS_SCRAPE_INSECURE_TLS === '1' });
   const page = await context.newPage();
   
   const frameworks: StorybookFramework[] = ['angular', 'react', 'core-web'];
@@ -221,7 +271,18 @@ async function main() {
         count++;
         console.log(`  [${count}] Scraping ${componentName}...`);
         
-        const docs = await scrapeComponentDocs(page, framework, componentId, componentName);
+        // The preview store loads *stories*, not docs entries, so hand it the component's
+        // first story id.
+        const firstStory = Object.values(index.entries).find(
+          (entry) => entry.type === 'story' && entry.title.split('/').pop() === componentName
+        );
+        const docs = await scrapeComponentDocs(
+          page,
+          framework,
+          componentId,
+          componentName,
+          firstStory?.id
+        );
         data[framework][componentName] = docs;
         
         if (count % 5 === 0) {
@@ -249,7 +310,8 @@ async function main() {
             tagName: source.tagName,
             properties: source.properties,
             states: source.states,
-            cssStyles: source.cssStyles,
+            events: source.events,
+            slots: source.slots,
             constructorDefaults: source.constructorDefaults,
             isFormAssociated: source.isFormAssociated,
           };
@@ -286,6 +348,28 @@ async function main() {
         storyCount++;
         console.log(`  [${storyCount}] Scraping stories for ${componentName} (${storyEntries.length} stories)...`);
         
+        // One docs-page visit yields the "Show code" snippet for every story of the
+        // component. The old per-story lookup in viewMode=story always came back empty,
+        // because that view has no code toggle.
+        const docsEntry = Object.values(index.entries).find(
+          (entry) => entry.type === 'docs' && entry.title.split('/').pop() === componentName
+        );
+        const sourcesByStory = docsEntry
+          ? await extractStorySources(page as any, BASE_URL, framework, docsEntry.id)
+          : {};
+
+        // Same already-loaded docs page: IGDS's hand-written Properties/Events tables
+        // (when present — currently React and core-web; Angular's docs pages don't have
+        // them) are the highest-trust source of prop names, types and required flags.
+        if (docsEntry && !data.documentedApi[framework][componentName]) {
+          try {
+            const groups = await extractDocumentedApi(page as any);
+            if (groups.length) data.documentedApi[framework][componentName] = groups;
+          } catch (error) {
+            console.error(`  Failed to extract documented API for ${componentName}:`, error);
+          }
+        }
+
         const stories: StoryVariant[] = [];
         for (const entry of storyEntries) {
           const storyUrl = `${BASE_URL}/${framework}/iframe.html?id=${entry.id}&viewMode=story`;
@@ -295,32 +379,15 @@ async function main() {
             await page.waitForSelector('#storybook-root', { timeout: 8000 });
             await page.waitForTimeout(1000);
             
-            // Extract rendered HTML
+            // Kept in the raw scrape only: build-agent-docs mines it for the real attribute
+            // vocabulary (which values `variant` actually accepts) and distils usage
+            // snippets from it. It is never served to an agent.
             const renderedHtml = await page.evaluate(() => {
               const root = document.querySelector('#storybook-root');
               return root ? root.innerHTML.substring(0, 5000) : undefined;
             });
             
-            // Try to get source code
-            let sourceCode: string | undefined;
-            try {
-              const showCodeBtn = page.locator('.docblock-code-toggle');
-              if (await showCodeBtn.isVisible({ timeout: 1000 })) {
-                await showCodeBtn.click();
-                await page.waitForTimeout(300);
-                
-                sourceCode = await page.evaluate(() => {
-                  const sourceBlock = document.querySelector('.docblock-source');
-                  if (sourceBlock) {
-                    const code = sourceBlock.querySelector('code, pre');
-                    return code?.textContent?.substring(0, 3000) || sourceBlock.textContent?.substring(0, 3000);
-                  }
-                  return undefined;
-                });
-              }
-            } catch {
-              // Source not available
-            }
+            const sourceCode = sourcesByStory[entry.name];
             
             stories.push({
               id: entry.id,

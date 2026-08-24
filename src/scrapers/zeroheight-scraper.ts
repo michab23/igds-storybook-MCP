@@ -14,7 +14,8 @@ async function getBrowser(): Promise<any> {
   
   const { chromium } = await import('playwright');
   browser = await chromium.launch({ headless: true });
-  currentPage = await browser.newPage();
+  // See the matching comment in scrape-all.ts: opt-in only, for TLS-intercepting proxies.
+  currentPage = await browser.newPage({ ignoreHTTPSErrors: process.env.IGDS_SCRAPE_INSECURE_TLS === '1' });
   
   return currentPage;
 }
