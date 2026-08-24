@@ -5,7 +5,22 @@ export interface ComponentProperty {
     attribute?: string;
     reflect?: boolean;
     defaultValue?: string;
+    description?: string;
+    required?: boolean;
 }
+export interface ComponentEvent {
+    name: string;
+    description?: string;
+    type?: string;
+}
+export interface ComponentSlot {
+    name: string;
+    description?: string;
+}
+/**
+ * Note the absence of `cssStyles`: component CSS was 74% of the Angular source payload and
+ * is of no use to an agent writing markup, so it is no longer extracted at all.
+ */
 export interface ComponentSource {
     className: string;
     tagName: string;
@@ -16,7 +31,8 @@ export interface ComponentSource {
         selector: string;
         name: string;
     }[];
-    cssStyles: string[];
+    events: ComponentEvent[];
+    slots: ComponentSlot[];
     constructorDefaults: Record<string, string>;
     isFormAssociated: boolean;
 }

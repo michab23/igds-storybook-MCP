@@ -22,6 +22,8 @@ export interface ArgType {
     type?: string;
     control?: string;
     required?: boolean;
+    /** Legal values for a closed vocabulary, from Storybook's argTypes options or a union. */
+    options?: string[];
 }
 export interface ComponentProperty {
     name: string;
@@ -29,6 +31,17 @@ export interface ComponentProperty {
     attribute?: string;
     reflect?: boolean;
     defaultValue?: string;
+    description?: string;
+    required?: boolean;
+}
+export interface ComponentEvent {
+    name: string;
+    description?: string;
+    type?: string;
+}
+export interface ComponentSlot {
+    name: string;
+    description?: string;
 }
 export interface ComponentSource {
     className: string;
@@ -39,7 +52,8 @@ export interface ComponentSource {
         selector: string;
         name: string;
     }[];
-    cssStyles: string[];
+    events?: ComponentEvent[];
+    slots?: ComponentSlot[];
     constructorDefaults: Record<string, string>;
     isFormAssociated: boolean;
 }
@@ -77,6 +91,7 @@ export interface ScrapedData {
     react: Map<string, ComponentDocs>;
     'core-web': Map<string, ComponentDocs>;
 }
+export type ZeroheightSectionName = 'design' | 'code' | 'usage' | 'accessibility';
 export interface ZeroheightSection {
     title: string;
     content: string;
