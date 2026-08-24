@@ -1,0 +1,13 @@
+{
+  "_comment": "Package names from the IGDS monorepo root package.json (nx publish targets). Each value is either a plain package name, using the default import shape for that framework, or { package, import } with a template. Templates support {component} (PascalCase name), {package}, {tag} (igds-accordion-item) and {path} (accordion-item). Re-run `npm run build:docs` after editing.",
+
+  "core-web": "@igds/core-web",
+  "react": "@igds/react",
+  "_react_note": "Confirmed from the React docs page: 'The Accordion component from @igds/react' — package root, plain PascalCase symbols (Accordion, AccordionItem), no deep subpath.",
+
+  "angular": {
+    "package": "@igds/angular",
+    "_note": "Confirmed from an IGDS Storybook usage sample: standalone components, deep-imported per component, then listed in the consuming component's `imports: [...]` array.",
+    "import": "import { Igds{component} } from '{package}/{path}';"
+  }
+}

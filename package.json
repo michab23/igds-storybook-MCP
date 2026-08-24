@@ -1,6 +1,6 @@
 {
   "name": "igds-storybook-mcp",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "MCP server for IGDS Storybook component documentation",
   "type": "module",
   "main": "dist/index.js",
@@ -10,7 +10,10 @@
     "start": "node dist/index.js",
     "scrape": "tsx src/scrape-all.ts",
     "http": "tsx src/http-server.ts",
-    "inspector": "npx @modelcontextprotocol/inspector --transport stdio -- node dist/index.js"
+    "inspector": "npx @modelcontextprotocol/inspector --transport stdio -- node dist/index.js",
+    "build:docs": "tsx src/build-agent-docs.ts",
+    "verify": "tsx scripts/verify.ts",
+    "verify:http": "tsx scripts/verify-http.ts"
   },
   "keywords": [
     "mcp",
@@ -31,5 +34,13 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^26.1.1"
-  }
+  },
+  "bin": {
+    "igds-storybook-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "data/igds-agent-docs.json",
+    "README.md"
+  ]
 }
