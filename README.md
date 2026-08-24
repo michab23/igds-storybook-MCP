@@ -49,7 +49,7 @@ The component allows the user to perform actions with one click
 
 The legal values, descriptions and events are real — from IGDS's own hand-written per-framework API tables where they exist, falling back to the component's manifest and finally to values mined from the design system's own stories — so an agent cannot invent a `variant` that does not exist.
 
----
+```
 
 ## Quick Start
 
