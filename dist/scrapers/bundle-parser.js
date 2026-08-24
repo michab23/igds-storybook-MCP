@@ -108,7 +108,6 @@ export function parseBundle(framework, bundleCode) {
             const properties = extractProperties(classBody, className);
             const states = extractStates(classBody, className);
             const queries = extractQueries(classBody, className);
-            const cssStyles = extractStyles(classBody, className);
             const constructorDefaults = extractConstructorDefaults(classBody, className);
             const tagName = extractTagName(classBody, className);
             const isFormAssociated = classBody.includes(`${className}.formAssociated=!0`);
@@ -119,7 +118,8 @@ export function parseBundle(framework, bundleCode) {
                 properties,
                 states,
                 queries,
-                cssStyles,
+                events: [],
+                slots: [],
                 constructorDefaults,
                 isFormAssociated,
             });
@@ -209,7 +209,8 @@ function extractFromDocgenInfo(bundleCode) {
             properties,
             states: [],
             queries: [],
-            cssStyles: [],
+            events: [],
+            slots: [],
             constructorDefaults: {},
             isFormAssociated: false,
         });
@@ -241,34 +242,70 @@ function extractFromMetadata(bundleCode, framework) {
         const jsonStr = bundleCode.substring(start, pos + 1);
         try {
             const metadata = JSON.parse(jsonStr);
-            // Extract properties from members
+            // This is a custom-elements manifest: it carries the descriptions, attribute names,
+            // defaults, events and slots that agents need. Keep all of it — the previous version
+            // discarded everything except name/type/attribute.
             const properties = [];
             const states = [];
             if (metadata.members) {
                 for (const member of metadata.members) {
-                    if (member.kind === 'field') {
-                        const prop = {
-                            name: member.name,
-                            type: member.type?.text || 'unknown',
-                            attribute: member.attribute,
-                        };
-                        if (member.default) {
-                            prop.defaultValue = member.default;
-                        }
-                        // Fields without attribute are states
-                        if (!member.attribute) {
-                            states.push(member.name);
-                        }
-                        else {
-                            properties.push(prop);
-                        }
+                    // Only public instance fields are part of the component's API.
+                    if (member.kind !== 'field')
+                        continue;
+                    if (member.privacy && member.privacy !== 'public')
+                        continue;
+                    if (member.static)
+                        continue;
+                    const prop = {
+                        name: member.name,
+                        type: member.type?.text || 'unknown',
+                        attribute: member.attribute,
+                        description: member.description || member.summary,
+                        defaultValue: member.default,
+                    };
+                    // A field with neither an attribute nor documentation is internal state; one that
+                    // is documented stays in the API even without an attribute.
+                    if (!member.attribute && !prop.description) {
+                        states.push(member.name);
+                    }
+                    else {
+                        properties.push(prop);
                     }
                 }
             }
-            // Extract attributes
-            const attributes = metadata.attributes || [];
-            // Extract events
-            const events = (metadata.events || []).map((e) => e.name);
+            // Attributes declared separately from fields also describe the public API.
+            for (const attribute of metadata.attributes || []) {
+                if (!attribute?.name)
+                    continue;
+                const known = properties.some((prop) => prop.attribute === attribute.name || prop.name === attribute.name);
+                if (known)
+                    continue;
+                properties.push({
+                    name: attribute.name,
+                    type: attribute.type?.text || 'string',
+                    attribute: attribute.name,
+                    description: attribute.description,
+                    defaultValue: attribute.default,
+                });
+            }
+            // IGDS's manifest generator sometimes loses the real event name for a field inherited
+            // from the shared IGDSElement base class, leaving a generic placeholder like
+            // `{"name":"name","type":{"text":"CustomEvent"},"inheritedFrom":{"name":"IGDSElement"}}`
+            // on every component. Every real IGDS custom event we've seen documented follows the
+            // `igds-*` convention, so use that as the signal for "this is a real event name."
+            const events = (metadata.events || [])
+                .filter((event) => event?.name && /^igds-/.test(event.name))
+                .map((event) => ({
+                name: event.name,
+                description: event.description,
+                type: event.type?.text,
+            }));
+            const slots = (metadata.slots || [])
+                .filter((slot) => slot?.name !== undefined)
+                .map((slot) => ({
+                name: slot.name || 'default',
+                description: slot.description,
+            }));
             // Extract tag name from exports
             let tagName = `igds-${className.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '')}`;
             if (metadata.exports) {
@@ -285,7 +322,8 @@ function extractFromMetadata(bundleCode, framework) {
                 properties,
                 states,
                 queries: [],
-                cssStyles: [],
+                events,
+                slots,
                 constructorDefaults: Object.fromEntries(properties.map(p => [p.name, p.defaultValue || ''])),
                 isFormAssociated: false,
             });
@@ -338,40 +376,6 @@ function extractQueries(classBody, className) {
         }
     }
     return queries;
-}
-function extractStyles(classBody, className) {
-    const styles = [];
-    // Single style: ComponentName.styles=(0,lit.iz)("...")
-    const singleMatches = classBody.matchAll(new RegExp(`${className}\\.styles=\\(0,lit\\.iz\\]\\("([^"]*)"\\)`, 'g'));
-    for (const match of singleMatches) {
-        styles.push(match[1]);
-    }
-    // Also try with ) instead of ]
-    const singleMatches2 = classBody.matchAll(new RegExp(`${className}\\.styles=\\(0,lit\\.iz\\)\\("([^"]*)"\\)`, 'g'));
-    for (const match of singleMatches2) {
-        styles.push(match[1]);
-    }
-    // Array styles: ComponentName.styles=[(0,lit.iz)('...'),...]
-    const arrayIndex = classBody.indexOf(`${className}.styles=[`);
-    if (arrayIndex !== -1) {
-        let depth = 1;
-        let pos = arrayIndex + `${className}.styles=[`.length;
-        while (pos < classBody.length && depth > 0) {
-            if (classBody[pos] === '[')
-                depth++;
-            if (classBody[pos] === ']')
-                depth--;
-            pos++;
-        }
-        const arrayContent = classBody.substring(arrayIndex + `${className}.styles=[`.length, pos - 1);
-        const stringMatches = arrayContent.matchAll(/lit\.iz\]?\("([^"]*)"|lit\.iz\]?\('([^']*)'|lit\.iz\)\("([^"]*)"|lit\.iz\)\('([^']*)'/g);
-        for (const match of stringMatches) {
-            const css = match[1] || match[2] || match[3] || match[4];
-            if (css)
-                styles.push(css);
-        }
-    }
-    return styles;
 }
 function extractConstructorDefaults(classBody, className) {
     const defaults = {};
