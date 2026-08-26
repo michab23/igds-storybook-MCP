@@ -55,20 +55,10 @@ The legal values, descriptions and events are real — from IGDS's own hand-writ
 
 ### Connect over stdio
 
-Once published, no cloning required:
-
-```json
-{
-  "mcpServers": {
-    "igds": { "command": "npx", "args": ["-y", "igds-storybook-mcp"] }
-  }
-}
-```
-
-Otherwise, build once locally — this doesn't change per client, every one of them below just needs to point `node` at the resulting file:
+Build once locally — this doesn't change per client, every one of them below just needs to point `node` at the resulting file:
 
 ```bash
-git clone <your-fork-or-origin-url>
+git clone https://github.com/michab23/igds-storybook-MCP.git
 cd igds-storybook-mcp
 npm install
 npm run build       # produces dist/index.js
@@ -142,11 +132,10 @@ npm run http    # http://localhost:3000/mcp  (PORT to override)
 
 Each session gets its own server instance, so concurrent clients are safe. `GET /health` reports version and live session count.
 
-**Opening `http://localhost:3000/mcp` directly in a browser will show `{"error":"Invalid or missing session ID"}` — this is correct, not a bug.** `/mcp` implements the MCP Streamable HTTP protocol, not a webpage: every request needs an `mcp-session-id` header, obtained by first `POST`ing an `initialize` message, which a browser navigation never does. To actually exercise it:
+`/mcp` implements the MCP Streamable HTTP protocol, not a webpage — opening it directly in a browser shows `{"error":"Invalid or missing session ID"}`, which is expected since every request needs an `mcp-session-id` header obtained via an `initialize` POST. To exercise it:
 
-- **MCP Inspector** (visual, no client setup needed): `npx @modelcontextprotocol/inspector --transport streamable-http http://localhost:3000/mcp`
+- **MCP Inspector**: `npx @modelcontextprotocol/inspector --transport streamable-http http://localhost:3000/mcp`
 - **A real MCP client** — point its config at the URL, e.g. `{ "mcpServers": { "igds": { "url": "http://localhost:3000/mcp" } } }`
-- **`GET /health`** for a plain-JSON liveness check — works in a browser since it isn't part of the MCP protocol
 - **`npm run verify:http`** — spins up its own instance and drives two full MCP sessions through it automatically
 
 ### Suggested agent workflow
