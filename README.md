@@ -2,7 +2,7 @@
 
 An MCP server that gives coding agents the **component contract** for the Israeli Government Design System (IGDS) — props, legal values, defaults, usage snippets and design rules — and nothing else.
 
-No rendered HTML. No CSS. No Storybook chrome. A `get-component` call costs about **3–6 KB**, where the previous version returned up to **153 KB** for a single component.
+No rendered HTML. No CSS. No Storybook chrome. A `get-component` call costs about **3–6 KB**.
 
 > **Why not the official Storybook MCP?** It cannot serve IGDS consumers today: IGDS runs Storybook 10.3.5 / Angular, while the official MCP requires 10.5+, is React-only in preview, and attaches to a *local* dev server. See [docs/EVALUATION.md](docs/EVALUATION.md) for the full assessment and the conditions under which we should switch to it.
 
@@ -14,7 +14,7 @@ No rendered HTML. No CSS. No Storybook chrome. A `get-component` call costs abou
 get-component("Button")
 ```
 
-```markdown
+
 # Button `<igds-button>`
 
 The component allows the user to perform actions with one click
@@ -30,14 +30,14 @@ The component allows the user to perform actions with one click
 | size | 'small' \| 'medium' \| 'large' | medium |  | Button size. Defaults to 'medium'. |
 | type | 'button' \| 'submit' \| 'reset' | button |  | Native button type. Defaults to 'button'. |
 | variant | 'primary' \| 'secondary' \| 'alternative' \| 'link' \| 'link-inline' | primary |  | Visual style of the button. Defaults to 'primary'. |
-...
+
 
 ## Events
 
 | event | description |
 |---|---|
 | igds-click | payload: CustomEvent<{ value: { nativeEvent: PointerEvent } }> from ig |
-...
+
 
 ## Usage — Default (core-web)
 ```html
