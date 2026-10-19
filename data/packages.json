@@ -1,5 +1,5 @@
 {
-  "_comment": "Package names from the IGDS monorepo root package.json (nx publish targets). Each value is either a plain package name, using the default import shape for that framework, or { package, import, ... } with a template. Templates support {component} (PascalCase name), {package}, {tag} (igds-accordion-item) and {path} (accordion-item). Optional per-entry keys: pathOverrides maps a tag to its real export subpath; childrenUseParentPath makes child elements (TableRow) import from their parent's subpath (table). A template that uses {path} falls back to the package root for components with no tag. verifiedAgainst names the IGDS release these shapes were checked against; it is shown to agents on every answer, so update it when you re-verify. Re-run `npm run build:docs` after editing.",
+  "_comment": "Package names from the IGDS monorepo root package.json (nx publish targets). Each value is either a plain package name, using the default import shape for that framework, or { package, import, ... } with a template. Templates support {component} (PascalCase name), {package}, {tag} (igds-accordion-item) and {path} (accordion-item). Optional per-entry keys: pathOverrides maps a tag to its real export subpath; childrenUseParentPath makes child elements (TableRow) import from their parent's subpath (table). componentImports maps a component name to a literal import for components with no tag of their own (Filter, Textarea, ...); a tagless component with no entry gets no import rather than a guessed one. verifiedAgainst names the IGDS release these shapes were checked against; it is shown to agents on every answer, so update it when you re-verify. Re-run `npm run build:docs` after editing.",
 
   "verifiedAgainst": "0.1.37",
 
@@ -8,7 +8,13 @@
     "_note": "Verified against @igds/core-web 0.1.37 package.json#exports: one side-effect entry per component (./button, ./table, ...). Importing the package root registers every component, which defeats tree-shaking.",
     "import": "import '{package}/{path}';",
     "pathOverrides": { "igds-spinbox": "spin-box" },
-    "childrenUseParentPath": true
+    "childrenUseParentPath": true,
+    "componentImports": {
+      "Filter": "import '@igds/core-web/filters';",
+      "Drag & Drop List": "import '@igds/core-web/list';",
+      "Table inside table": "import '@igds/core-web/table';",
+      "Textarea": "import '@igds/core-web/input'; // <igds-input type=\"textarea\">"
+    }
   },
 
   "react": {
@@ -16,7 +22,13 @@
     "_note": "Verified against @igds/react 0.1.37 package.json#exports: per-component subpaths (./button, ./table, ...), each exporting the component and its children (Table, TableHeader, TableRow from ./table).",
     "import": "import { {component} } from '{package}/{path}';",
     "pathOverrides": { "igds-spinbox": "spin-box" },
-    "childrenUseParentPath": true
+    "childrenUseParentPath": true,
+    "componentImports": {
+      "Filter": "import { HorizontalFilter, VerticalFilter } from '@igds/react/filters';",
+      "Drag & Drop List": "import { List, ListItem } from '@igds/react/list';",
+      "Table inside table": "import { Table, TableHeader, TableRow } from '@igds/react/table';",
+      "Textarea": "import { Input } from '@igds/react/input'; // <Input type=\"textarea\" />"
+    }
   },
 
   "angular": {

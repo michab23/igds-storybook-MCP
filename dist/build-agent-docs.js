@@ -12,6 +12,7 @@ import { join } from 'path';
 import { FRAMEWORKS, } from './agent-docs.js';
 import { attributeKey, looksLikeEnum, mergeSquashedAttributes, mineAttributes, toUsageSnippet, } from './light-dom.js';
 import { cleanSnippet } from './snippet-clean.js';
+import { iconLookup } from './icon-index.js';
 import { buildChromeLines, cleanComponentSections, extractGuidance } from './zeroheight-clean.js';
 import { getZeroheightComponentName } from './scrapers/cross-reference.js';
 import { parseLiteralUnion } from './scrapers/storybook-api.js';
@@ -20,6 +21,7 @@ const STORYBOOK_FILE = join(DATA_DIR, 'igds-storybook-data.json');
 const ZEROHEIGHT_FILE = join(DATA_DIR, 'zeroheight-data.json');
 const PACKAGES_FILE = join(DATA_DIR, 'packages.json');
 const OUTPUT_FILE = join(DATA_DIR, 'igds-agent-docs.json');
+const ICON_INDEX_FILE = join(DATA_DIR, 'icon-index.json');
 const SCHEMA_VERSION = 1;
 /** Frameworks whose light DOM keeps authored attributes, best first. */
 const SNIPPET_PREFERENCE = ['core-web', 'angular', 'react'];
@@ -171,27 +173,27 @@ const DEFAULT_IMPORT_TEMPLATES = {
     // consuming component's `imports: [...]` array. Confirmed from an IGDS usage sample.
     angular: "import { Igds{component} } from '{package}/{path}';",
 };
-/** Root-of-package import shape, used when a subpath template has no path to fill in. */
-const ROOT_IMPORT_TEMPLATES = {
-    react: "import { {component} } from '{package}';",
-    'core-web': "import '{package}';",
-    angular: "import { Igds{component} } from '{package}';",
-};
-function renderImport(entry, framework, componentName, tag, parentTag) {
+function renderImport(entry, framework, componentName, tag, parentTag, 
+/** Docs-page name used to look up componentImports (may differ from the identifier). */
+componentKey) {
     if (!entry)
         return undefined;
     const packageName = typeof entry === 'string' ? entry : entry.package;
     if (!packageName)
         return undefined;
     const options = typeof entry === 'string' ? undefined : entry;
-    let template = options?.import || DEFAULT_IMPORT_TEMPLATES[framework];
+    const literal = options?.componentImports?.[componentKey ?? componentName];
+    if (literal)
+        return literal;
+    const template = options?.import || DEFAULT_IMPORT_TEMPLATES[framework];
     // Deep-import subpath: the tag without its igds- prefix (accordion-item), or the parent's
     // when children are exported alongside it, with explicit overrides where they differ.
     const pathTag = (options?.childrenUseParentPath && parentTag) || tag || '';
     const path = options?.pathOverrides?.[pathTag] ?? pathTag.replace(/^igds-/, '');
-    // No tag means no known subpath: point at the package root rather than emit `pkg/`.
+    // No tag means no known subpath, and the package root doesn't export these entries under
+    // their docs-page names (no `Filter`, `Textarea`): serve no import rather than a guess.
     if (!path && template.includes('{path}'))
-        template = ROOT_IMPORT_TEMPLATES[framework];
+        return undefined;
     return template
         .replace(/\{component\}/g, componentName)
         .replace(/\{package\}/g, packageName)
@@ -456,7 +458,7 @@ function stripPresentationChrome(code) {
     // markers used to sit — pure noise, not meaningful structure in the source.
     return result.replace(/\n[ \t]*(?:\n[ \t]*)+/g, '\n').trim();
 }
-function buildUsage(componentName, raw) {
+function buildUsage(componentName, raw, lookupIcon) {
     const snippets = [];
     const seen = new Set();
     const tryAdd = (framework, story) => {
@@ -467,7 +469,7 @@ function buildUsage(componentName, raw) {
         if (!extracted)
             return false;
         // Strip story scaffolding and deprecated APIs; skip snippets that only demonstrate those.
-        const cleaned = cleanSnippet(extracted, framework, componentName);
+        const cleaned = cleanSnippet(extracted, framework, componentName, lookupIcon);
         if (cleaned.drop || !cleaned.code)
             return false;
         const code = cleaned.code;
@@ -513,6 +515,10 @@ function main() {
     const packages = existsSync(PACKAGES_FILE)
         ? JSON.parse(readFileSync(PACKAGES_FILE, 'utf-8'))
         : {};
+    const iconIndex = existsSync(ICON_INDEX_FILE)
+        ? JSON.parse(readFileSync(ICON_INDEX_FILE, 'utf-8'))
+        : null;
+    const lookupIcon = iconLookup(iconIndex);
     // Mine attribute vocabulary once, across every story of every framework.
     const mined = new Map();
     for (const framework of FRAMEWORKS) {
@@ -605,7 +611,7 @@ function main() {
         const identifier = toPascalIdentifier(name);
         const imports = {};
         for (const framework of frameworks) {
-            const statement = renderImport(packages[framework], framework, identifier, tag);
+            const statement = renderImport(packages[framework], framework, identifier, tag, undefined, name);
             if (statement)
                 imports[framework] = statement;
         }
@@ -623,7 +629,7 @@ function main() {
             imports: Object.keys(imports).length ? imports : undefined,
             props: buildProps(name, tag, raw, mined, parentGroups),
             events: buildEvents(parentGroups, raw, name),
-            usage: buildUsage(name, raw),
+            usage: buildUsage(name, raw, lookupIcon),
             guidance,
             refs: {
                 storybook: storybookRefs,

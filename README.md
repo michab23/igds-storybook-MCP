@@ -174,7 +174,14 @@ igds-storybook.globalbit.dev  ──►  data/igds-agent-docs.json  ──►  t
 
 Rendered HTML is captured in that process only to mine the real attribute vocabulary and distil usage snippets — it is never served to an agent. `npm run verify` enforces that.
 
-Import statement shapes (`import { Button } from '@igds/react/button'` vs. `import '@igds/core-web/button'` vs. Angular's per-component deep imports) are configured in [data/packages.json](data/packages.json) from the IGDS monorepo's publish targets, and confirmed against the published packages' `exports` maps (IGDS 0.1.37) rather than assumed. Child elements import from their parent's subpath (`TableRow` from `@igds/react/table`).
+Import statement shapes (`import { Button } from '@igds/react/button'` vs. `import '@igds/core-web/button'` vs. Angular's per-component deep imports) are configured in [data/packages.json](data/packages.json) from the IGDS monorepo's publish targets, and confirmed against the published packages' `exports` maps (IGDS 0.1.37) rather than assumed. Child elements import from their parent's subpath (`TableRow` from `@igds/react/table`). Components without a tag of their own (Filter, Textarea, …) use verified imports from `componentImports`; anything unverified gets no import line rather than a guess.
+
+Inline icon markup in story snippets (`icon: '<path d="M20 3…"/>'`) is replaced with the `@igds/icons` export name (`icon: realEstate`) using [data/icon-index.json](data/icon-index.json). The index stores only hashes of each icon's markup, never the artwork, because the IGDS packages declare no license. Regenerate it from an installed package when IGDS updates, then rebuild:
+
+```bash
+npm run build:icons -- /path/to/node_modules/@igds/icons
+npm run build:docs
+```
 
 ## Project layout
 

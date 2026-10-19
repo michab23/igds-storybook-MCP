@@ -13,7 +13,8 @@
     "inspector": "npx @modelcontextprotocol/inspector --transport stdio -- node dist/index.js",
     "build:docs": "tsx src/build-agent-docs.ts",
     "verify": "tsx scripts/verify.ts",
-    "verify:http": "tsx scripts/verify-http.ts"
+    "verify:http": "tsx scripts/verify-http.ts",
+    "build:icons": "tsx scripts/build-icon-index.ts"
   },
   "keywords": [
     "mcp",
