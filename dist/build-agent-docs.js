@@ -11,6 +11,7 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { FRAMEWORKS, } from './agent-docs.js';
 import { attributeKey, looksLikeEnum, mergeSquashedAttributes, mineAttributes, toUsageSnippet, } from './light-dom.js';
+import { cleanSnippet } from './snippet-clean.js';
 import { buildChromeLines, cleanComponentSections, extractGuidance } from './zeroheight-clean.js';
 import { getZeroheightComponentName } from './scrapers/cross-reference.js';
 import { parseLiteralUnion } from './scrapers/storybook-api.js';
@@ -24,6 +25,17 @@ const SCHEMA_VERSION = 1;
 const SNIPPET_PREFERENCE = ['core-web', 'angular', 'react'];
 // One guaranteed slot per framework, plus headroom for a couple of extra variety snippets.
 const MAX_USAGE_SNIPPETS = 5;
+/** Story sources scraped before the cap was raised were cut at exactly this many characters. */
+const LEGACY_SOURCE_CAP = 3000;
+/**
+ * A source cut mid-tag can't be copied as-is: drop the partial last line and say so, so the
+ * agent knows the snippet is incomplete rather than writing `<Pagi` into its code.
+ */
+function markTruncated(code, framework) {
+    const complete = code.slice(0, code.lastIndexOf('\n')).trimEnd();
+    const marker = framework === 'react' ? '{/* … truncated in the scraped source */}' : '<!-- … truncated in the scraped source -->';
+    return `${complete}\n${marker}`;
+}
 function kebab(name) {
     return name
         .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
@@ -159,15 +171,27 @@ const DEFAULT_IMPORT_TEMPLATES = {
     // consuming component's `imports: [...]` array. Confirmed from an IGDS usage sample.
     angular: "import { Igds{component} } from '{package}/{path}';",
 };
-function renderImport(entry, framework, componentName, tag) {
+/** Root-of-package import shape, used when a subpath template has no path to fill in. */
+const ROOT_IMPORT_TEMPLATES = {
+    react: "import { {component} } from '{package}';",
+    'core-web': "import '{package}';",
+    angular: "import { Igds{component} } from '{package}';",
+};
+function renderImport(entry, framework, componentName, tag, parentTag) {
     if (!entry)
         return undefined;
     const packageName = typeof entry === 'string' ? entry : entry.package;
     if (!packageName)
         return undefined;
-    const template = (typeof entry === 'string' ? undefined : entry.import) || DEFAULT_IMPORT_TEMPLATES[framework];
-    // Deep-import subpath: the tag without its igds- prefix (accordion-item).
-    const path = (tag || '').replace(/^igds-/, '');
+    const options = typeof entry === 'string' ? undefined : entry;
+    let template = options?.import || DEFAULT_IMPORT_TEMPLATES[framework];
+    // Deep-import subpath: the tag without its igds- prefix (accordion-item), or the parent's
+    // when children are exported alongside it, with explicit overrides where they differ.
+    const pathTag = (options?.childrenUseParentPath && parentTag) || tag || '';
+    const path = options?.pathOverrides?.[pathTag] ?? pathTag.replace(/^igds-/, '');
+    // No tag means no known subpath: point at the package root rather than emit `pkg/`.
+    if (!path && template.includes('{path}'))
+        template = ROOT_IMPORT_TEMPLATES[framework];
     return template
         .replace(/\{component\}/g, componentName)
         .replace(/\{package\}/g, packageName)
@@ -431,9 +455,16 @@ function buildUsage(componentName, raw) {
     const seen = new Set();
     const tryAdd = (framework, story) => {
         const rawCode = story.sourceCode?.trim();
-        const code = rawCode ? stripPresentationChrome(rawCode) : toUsageSnippet(story.renderedHtml || '');
-        if (!code)
+        const truncated = (story.sourceCode?.length ?? 0) >= LEGACY_SOURCE_CAP;
+        const stripped = rawCode ? stripPresentationChrome(rawCode) : toUsageSnippet(story.renderedHtml || '');
+        const extracted = stripped && truncated ? markTruncated(stripped, framework) : stripped;
+        if (!extracted)
             return false;
+        // Strip story scaffolding and deprecated APIs; skip snippets that only demonstrate those.
+        const cleaned = cleanSnippet(extracted, framework, componentName);
+        if (cleaned.drop || !cleaned.code)
+            return false;
+        const code = cleaned.code;
         // Different stories often render the same markup; keep the vocabulary, not the repeats.
         const signature = code.replace(/\s+/g, '');
         if (seen.has(signature))
@@ -672,7 +703,7 @@ function attachSubComponents(components, mined, raw, packages) {
             continue;
         const imports = {};
         for (const framework of parent.frameworks) {
-            const statement = renderImport(packages[framework], framework, name, tag);
+            const statement = renderImport(packages[framework], framework, name, tag, parent.tag);
             if (statement)
                 imports[framework] = statement;
         }

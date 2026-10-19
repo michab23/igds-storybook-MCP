@@ -174,7 +174,7 @@ igds-storybook.globalbit.dev  ──►  data/igds-agent-docs.json  ──►  t
 
 Rendered HTML is captured in that process only to mine the real attribute vocabulary and distil usage snippets — it is never served to an agent. `npm run verify` enforces that.
 
-Import statement shapes (`import { Button } from '@igds/react'` vs. `import '@igds/core-web'` vs. Angular's per-component deep imports) are configured in [data/packages.json](data/packages.json) from the IGDS monorepo's publish targets, and confirmed against real IGDS usage samples rather than assumed.
+Import statement shapes (`import { Button } from '@igds/react/button'` vs. `import '@igds/core-web/button'` vs. Angular's per-component deep imports) are configured in [data/packages.json](data/packages.json) from the IGDS monorepo's publish targets, and confirmed against the published packages' `exports` maps (IGDS 0.1.37) rather than assumed. Child elements import from their parent's subpath (`TableRow` from `@igds/react/table`).
 
 ## Project layout
 

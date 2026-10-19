@@ -34,12 +34,25 @@ export function resolvePropName(prop, framework) {
     return prop.names?.[framework] || propNameFor(prop.name, framework);
 }
 /**
+ * React's prop for a raw custom event, as `@igds/react` maps it through `@lit/react`'s
+ * `createComponent({ events })`: `igds-cell-link-click` → `onIgdsCellLinkClick`.
+ */
+export function reactEventPropFor(eventName) {
+    if (/^on[A-Z]/.test(eventName))
+        return eventName;
+    return 'on' + eventName.split('-').filter(Boolean).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join('');
+}
+/**
  * The name to actually listen for in this framework: IGDS's own documented spelling for
  * it (React's synthetic `onIgdsToggle` vs. everyone else's raw `igds-toggle`), or the
- * canonical name when no framework-specific spelling was captured.
+ * canonical name when no framework-specific spelling was captured. React never listens by
+ * the raw name, so for React an undocumented event gets the derived `onIgds*` prop.
  */
 export function resolveEventName(event, framework) {
-    return event.names?.[framework] || event.name;
+    const documented = event.names?.[framework];
+    if (documented)
+        return documented;
+    return framework === 'react' ? reactEventPropFor(event.name) : event.name;
 }
 /** How props and events are written in each target, shown alongside the props table. */
 export function bindingSyntaxFor(framework) {
