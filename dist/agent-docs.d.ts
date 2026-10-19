@@ -39,6 +39,12 @@ export interface AgentEvent {
     names?: Partial<Record<Framework, string>>;
     description?: string;
 }
+export interface AgentMethod {
+    name: string;
+    /** e.g. `focusCellByAddress(row: number, cell: number, setFocusOnInput?: boolean)` */
+    signature: string;
+    description?: string;
+}
 export interface AgentSlot {
     name: string;
     description?: string;
@@ -64,6 +70,7 @@ export interface AgentSubComponent {
     tag: string;
     props: AgentProp[];
     events?: AgentEvent[];
+    methods?: AgentMethod[];
     /** Child elements are deep-imported separately in Angular/React. */
     imports?: Partial<Record<Framework, string>>;
 }
@@ -78,6 +85,7 @@ export interface AgentComponent {
     imports?: Partial<Record<Framework, string>>;
     props: AgentProp[];
     events?: AgentEvent[];
+    methods?: AgentMethod[];
     slots?: AgentSlot[];
     usage: UsageSnippet[];
     subComponents?: AgentSubComponent[];
@@ -93,6 +101,8 @@ export interface DataSource {
     storybookChannel?: string;
     /** IGDS release the import shapes and event names were checked against, set by the operator. */
     verifiedAgainst?: string;
+    /** When method signatures were read from the live custom-elements manifest. */
+    manifestFetchedAt?: string;
 }
 export interface AgentDocs {
     /** Schema version of this artifact, not the server version. */
@@ -172,4 +182,6 @@ export declare function provenanceLine(meta: {
     scrapedAt: string;
     source?: DataSource;
 }): string;
+/** How to call an element method from each framework. */
+export declare function methodCallHintFor(framework: Framework): string;
 //# sourceMappingURL=agent-docs.d.ts.map

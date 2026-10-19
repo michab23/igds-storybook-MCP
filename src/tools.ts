@@ -7,6 +7,7 @@ import {
   bindingSyntaxFor,
   resolveEventName,
   isUndeclaredProp,
+  methodCallHintFor,
   provenanceLine,
   resolvePropName,
   renderType,
@@ -311,6 +312,13 @@ function renderComponent(component: AgentComponent, framework: Framework, full: 
       )
     : undefined;
 
+  const methodsTable = component.methods?.length
+    ? join(
+        table(['method', 'description'], component.methods.map((method) => [`\`${method.signature}\``, method.description])),
+        methodCallHintFor(framework)
+      )
+    : undefined;
+
   const usage = component.usage.find((snippet) => snippet.framework === framework) || component.usage[0];
 
   // Composition children an agent needs in order to write the parent at all.
@@ -335,6 +343,7 @@ function renderComponent(component: AgentComponent, framework: Framework, full: 
     facts,
     component.props.length ? join(`## Props (${component.props.length})`, propsTable, naming) : undefined,
     eventsTable ? join(`## Events`, eventsTable) : undefined,
+    methodsTable ? join(`## Methods`, methodsTable) : undefined,
     subComponents.length ? join('## Child elements', ...subComponents) : undefined,
     usage ? section(`Usage — ${usage.story} (${usage.framework})`, codeBlock(usage.code)) : undefined,
     component.guidance

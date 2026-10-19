@@ -198,4 +198,15 @@ export function provenanceLine(meta) {
         : '; package version unknown';
     return `_Data: ${from}${verified}. If your installed IGDS differs, its typings win._`;
 }
+/** How to call an element method from each framework. */
+export function methodCallHintFor(framework) {
+    switch (framework) {
+        case 'react':
+            return '_Call on the element via a ref, e.g. `const ref = useRef<ToastWC>(null)` → `ref.current?.show()`. Each wrapper module exports its element class as `<Name>WC`._';
+        case 'angular':
+            return '_Call on the element: `@ViewChild(...)` the component, then call the method on its `nativeElement`._';
+        case 'core-web':
+            return '_Call on the element: `document.querySelector(\'igds-…\').show()`._';
+    }
+}
 //# sourceMappingURL=agent-docs.js.map

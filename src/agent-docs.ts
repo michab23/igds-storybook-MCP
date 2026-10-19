@@ -53,6 +53,13 @@ export interface AgentEvent {
   description?: string;
 }
 
+export interface AgentMethod {
+  name: string;
+  /** e.g. `focusCellByAddress(row: number, cell: number, setFocusOnInput?: boolean)` */
+  signature: string;
+  description?: string;
+}
+
 export interface AgentSlot {
   name: string;
   description?: string;
@@ -81,6 +88,7 @@ export interface AgentSubComponent {
   tag: string;
   props: AgentProp[];
   events?: AgentEvent[];
+  methods?: AgentMethod[];
   /** Child elements are deep-imported separately in Angular/React. */
   imports?: Partial<Record<Framework, string>>;
 }
@@ -96,6 +104,7 @@ export interface AgentComponent {
   imports?: Partial<Record<Framework, string>>;
   props: AgentProp[];
   events?: AgentEvent[];
+  methods?: AgentMethod[];
   slots?: AgentSlot[];
   usage: UsageSnippet[];
   subComponents?: AgentSubComponent[];
@@ -112,6 +121,8 @@ export interface DataSource {
   storybookChannel?: string;
   /** IGDS release the import shapes and event names were checked against, set by the operator. */
   verifiedAgainst?: string;
+  /** When method signatures were read from the live custom-elements manifest. */
+  manifestFetchedAt?: string;
 }
 
 export interface AgentDocs {
@@ -339,4 +350,16 @@ export function provenanceLine(meta: { scrapedAt: string; source?: DataSource })
     ? `; imports and event names verified against IGDS ${meta.source.verifiedAgainst}`
     : '; package version unknown';
   return `_Data: ${from}${verified}. If your installed IGDS differs, its typings win._`;
+}
+
+/** How to call an element method from each framework. */
+export function methodCallHintFor(framework: Framework): string {
+  switch (framework) {
+    case 'react':
+      return '_Call on the element via a ref, e.g. `const ref = useRef<ToastWC>(null)` → `ref.current?.show()`. Each wrapper module exports its element class as `<Name>WC`._';
+    case 'angular':
+      return '_Call on the element: `@ViewChild(...)` the component, then call the method on its `nativeElement`._';
+    case 'core-web':
+      return '_Call on the element: `document.querySelector(\'igds-…\').show()`._';
+  }
 }

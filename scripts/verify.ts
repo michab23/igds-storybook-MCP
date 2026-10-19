@@ -17,6 +17,7 @@ import { registerAllTools } from '../src/tools.js';
 import { AgentDocsStore, reactEventPropFor, resolveEventName } from '../src/agent-docs.js';
 import { cleanSnippet } from '../src/snippet-clean.js';
 import { iconLookup, IconIndex } from '../src/icon-index.js';
+import { extractManifestModules, methodsFromManifest } from '../src/scrapers/manifest.js';
 import { SERVER_INFO } from '../src/server-info.js';
 
 /** Worst measured `get-component` response before this work, in characters. */
@@ -234,6 +235,26 @@ async function main(): Promise<void> {
     'get-component states its data source and verified IGDS version'
   );
   check(store.meta().source?.verifiedAgainst === '0.1.37', 'igds://meta carries the verified IGDS version');
+
+  // #10: public methods, with signatures from the manifest.
+  const toast = await callTool('get-component', { component: 'Toast', framework: 'react' });
+  check(
+    /## Methods/.test(toast) && /`show\(\)` \| Display the toast\. Required for type="floating"/.test(toast) && /ref\.current\?\.show\(\)/.test(toast),
+    'get-component lists curated methods with signature and call hint'
+  );
+  const curated = JSON.parse(readFileSync(join(process.cwd(), 'data', 'component-methods.json'), 'utf-8')) as Record<string, { class: string; methods: Record<string, string> }>;
+  const manifestClasses = JSON.parse(readFileSync(join(process.cwd(), 'data', 'igds-manifest.json'), 'utf-8')).classes as Record<string, { methods: { name: string }[] }>;
+  const staleMethods = Object.entries(curated)
+    .filter(([key]) => !key.startsWith('_'))
+    .flatMap(([, entry]) => Object.keys(entry.methods).filter((name) => !manifestClasses[entry.class]?.methods.some((m) => m.name === name)).map((name) => `${entry.class}.${name}`));
+  check(!staleMethods.length, 'every curated method exists in the manifest', staleMethods.join(', '));
+  const fakeBundle = 'x=1,y=JSON.parse(`[{"kind":"javascript-module","path":"src/a.ts","declarations":[{"kind":"class","name":"A","description":"has {braces} and \\` ticks","members":[{"kind":"method","name":"go","parameters":[{"name":"n","optional":true,"type":{"text":"number"}}]},{"kind":"method","name":"hidden","privacy":"private"}]}]}]`);z=2';
+  const fakeModules = extractManifestModules(fakeBundle);
+  check(
+    JSON.stringify(fakeModules && methodsFromManifest(fakeModules, 't').classes) === JSON.stringify({ A: { path: 'src/a.ts', methods: [{ name: 'go', signature: 'go(n?: number)' }] } }),
+    'manifest extractor parses the embedded literal (braces, escaped backticks, private methods)',
+    JSON.stringify(fakeModules && methodsFromManifest(fakeModules, 't').classes)
+  );
 
   const missing = await callTool('get-component', { component: 'NoSuchComponent' });
   check(/search-components/.test(missing), 'unknown component points at search');

@@ -183,6 +183,13 @@ npm run build:icons -- /path/to/node_modules/@igds/icons
 npm run build:docs
 ```
 
+Public methods (`Toast.show()`, `Drawer.hide()`, `Input.reportValidity()`, …) come from two files. [data/component-methods.json](data/component-methods.json) is a curated list of the methods consumers call, because IGDS doesn't mark internals private: its manifest lists ~600 "public" methods and documents 3. [data/igds-manifest.json](data/igds-manifest.json) holds every class's method signatures, read from the custom-elements manifest embedded in the live core-web Storybook bundle. The build takes signatures from the manifest and skips, with a warning, any curated method that no longer exists. Refresh the signatures without a full scrape:
+
+```bash
+npm run scrape:manifest
+npm run build:docs
+```
+
 ## Project layout
 
 | Path | Purpose |

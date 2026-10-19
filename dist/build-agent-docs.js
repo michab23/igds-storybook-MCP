@@ -22,6 +22,28 @@ const ZEROHEIGHT_FILE = join(DATA_DIR, 'zeroheight-data.json');
 const PACKAGES_FILE = join(DATA_DIR, 'packages.json');
 const OUTPUT_FILE = join(DATA_DIR, 'igds-agent-docs.json');
 const ICON_INDEX_FILE = join(DATA_DIR, 'icon-index.json');
+const MANIFEST_FILE = join(DATA_DIR, 'igds-manifest.json');
+const METHODS_FILE = join(DATA_DIR, 'component-methods.json');
+/**
+ * Curated method list joined with manifest signatures. A curated method the manifest no
+ * longer has is skipped and reported, so a stale entry can't send agents to a dead API.
+ */
+function buildMethods(tag, curated, manifest, stale) {
+    const entry = tag ? curated[tag] : undefined;
+    if (!entry)
+        return undefined;
+    const declared = manifest?.classes[entry.class]?.methods || [];
+    const methods = [];
+    for (const [name, description] of Object.entries(entry.methods)) {
+        const found = declared.find((method) => method.name === name);
+        if (!found) {
+            stale.push(`${entry.class}.${name}`);
+            continue;
+        }
+        methods.push({ name, signature: found.signature, description });
+    }
+    return methods.length ? methods : undefined;
+}
 const SCHEMA_VERSION = 1;
 /** Frameworks whose light DOM keeps authored attributes, best first. */
 const SNIPPET_PREFERENCE = ['core-web', 'angular', 'react'];
@@ -519,6 +541,13 @@ function main() {
         ? JSON.parse(readFileSync(ICON_INDEX_FILE, 'utf-8'))
         : null;
     const lookupIcon = iconLookup(iconIndex);
+    const curatedMethods = existsSync(METHODS_FILE)
+        ? Object.fromEntries(Object.entries(JSON.parse(readFileSync(METHODS_FILE, 'utf-8'))).filter(([key]) => !key.startsWith('_')))
+        : {};
+    const manifestMethods = existsSync(MANIFEST_FILE)
+        ? JSON.parse(readFileSync(MANIFEST_FILE, 'utf-8'))
+        : null;
+    const staleMethods = [];
     // Mine attribute vocabulary once, across every story of every framework.
     const mined = new Map();
     for (const framework of FRAMEWORKS) {
@@ -629,6 +658,7 @@ function main() {
             imports: Object.keys(imports).length ? imports : undefined,
             props: buildProps(name, tag, raw, mined, parentGroups),
             events: buildEvents(parentGroups, raw, name),
+            methods: buildMethods(tag, curatedMethods, manifestMethods, staleMethods),
             usage: buildUsage(name, raw, lookupIcon),
             guidance,
             refs: {
@@ -638,6 +668,9 @@ function main() {
         };
     }
     const unattachedTags = attachSubComponents(components, mined, raw, packages);
+    if (staleMethods.length) {
+        console.warn(`  WARNING: curated methods missing from the manifest (skipped): ${staleMethods.join(', ')}`);
+    }
     if (unattachedTags.length) {
         console.warn(`  WARNING: ${unattachedTags.length} tags seen in markup could not be matched to a parent component: ${unattachedTags.join(', ')}`);
     }
@@ -654,7 +687,7 @@ function main() {
         schema: SCHEMA_VERSION,
         scrapedAt: raw.scrapedAt,
         builtAt: new Date().toISOString(),
-        source: { storybookChannel, verifiedAgainst: packages.verifiedAgainst },
+        source: { storybookChannel, verifiedAgainst: packages.verifiedAgainst, manifestFetchedAt: manifestMethods?.fetchedAt },
         categories: [...categories].sort(),
         components,
         notes,

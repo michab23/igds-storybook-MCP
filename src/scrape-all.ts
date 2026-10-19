@@ -3,6 +3,7 @@ import { writeFileSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { StorybookFramework, StorybookIndex, ComponentDocs, ArgType, StoryVariant, ZeroheightData } from './types.js';
 import { fetchBundle, parseBundle, ParsedBundle } from './scrapers/bundle-parser.js';
+import { writeManifestMethods } from './scrapers/manifest.js';
 import { scrapeAllZeroheight } from './scrapers/zeroheight-scraper.js';
 import { mapCrossReferences } from './scrapers/cross-reference.js';
 import { extractArgTypesFromPreview, extractStorySources, extractDocumentedApi, DocumentedComponentApi } from './scrapers/storybook-api.js';
@@ -302,6 +303,9 @@ async function main() {
         
         const parsed = parseBundle(framework, bundleCode);
         console.log(`  Found ${parsed.components.size} components in bundle`);
+        if (framework === 'core-web') {
+          console.log(`  Wrote method signatures for ${writeManifestMethods(bundleCode)} classes to data/igds-manifest.json`);
+        }
         
         // Convert to serializable format
         for (const [name, source] of parsed.components) {
