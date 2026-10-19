@@ -225,6 +225,8 @@ function pickDocumentedGroups(entries, matches) {
     return result;
 }
 /** Higher rank overrides lower rank; equal rank overrides in processing order (last wins). */
+/** Storybook controls that are never component API (checked against IGDS 0.1.37 typings). */
+const STORY_ONLY_CONTROLS = new Set([attributeKey('isLtr')]);
 const PROVENANCE_RANK = {
     documented: 3,
     manifest: 2,
@@ -340,10 +342,14 @@ function buildProps(componentName, tag, raw, mined, documentedByFramework) {
             });
         }
     }
-    // 3. Storybook argTypes — currently thin, but authoritative once the docs scraper is fixed.
+    // 3. Storybook argTypes. These are story controls, not declarations: a prop known only from
+    // here is served marked as undeclared (see isUndeclaredProp).
     for (const framework of FRAMEWORKS) {
         for (const argType of raw[framework]?.[componentName]?.argTypes || []) {
             if (!argType?.name)
+                continue;
+            // Storybook's direction toggle. Present on every component's controls, declared by none.
+            if (STORY_ONLY_CONTROLS.has(attributeKey(argType.name)))
                 continue;
             // `description` frequently holds the type rather than prose; split it apart.
             const fromType = splitTypeAndDescription(argType.type);
@@ -635,10 +641,14 @@ function main() {
         notes.push('Import statements are not published for IGDS. Configure real package names in data/packages.json to have them served; until then no import is guessed.');
     }
     notes.push('Prop values marked as observed were collected from the design system\'s own stories; they are real but may not be exhaustive.');
+    // The Storybook URL path names the channel: /develop/react/ is unreleased code.
+    const sampleUrl = Object.values(components).flatMap((c) => Object.values(c.refs.storybook))[0];
+    const storybookChannel = sampleUrl ? new URL(sampleUrl).pathname.split('/').filter(Boolean)[0] : undefined;
     const docs = {
         schema: SCHEMA_VERSION,
         scrapedAt: raw.scrapedAt,
         builtAt: new Date().toISOString(),
+        source: { storybookChannel, verifiedAgainst: packages.verifiedAgainst },
         categories: [...categories].sort(),
         components,
         notes,

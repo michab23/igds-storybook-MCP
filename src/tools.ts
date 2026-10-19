@@ -6,6 +6,8 @@ import {
   Framework,
   bindingSyntaxFor,
   resolveEventName,
+  isUndeclaredProp,
+  provenanceLine,
   resolvePropName,
   renderType,
 } from './agent-docs.js';
@@ -149,7 +151,7 @@ export function registerAllTools(server: McpServer): void {
       if (!found) return notFound(component, framework as Framework | undefined);
 
       const target = (framework as Framework | undefined) ?? found.frameworks[0];
-      const body = renderComponent(found, target, detail === 'full');
+      const body = join(renderComponent(found, target, detail === 'full'), provenanceLine(store.meta()));
 
       return ok(
         withinBudget(
@@ -280,12 +282,12 @@ function renderComponent(component: AgentComponent, framework: Framework, full: 
     .filter(Boolean)
     .join('\n');
 
-  // Mark props we only ever saw in markup. They are real, but the component never declared
-  // them, so an agent should treat them as less certain than the rest.
-  const hasObserved = component.props.some((prop) => prop.provenance === 'observed');
+  // Mark props the component never declared (seen only in story markup or Storybook
+  // controls). Some are real, many are story-only, so an agent must verify before use.
+  const hasUndeclared = component.props.some(isUndeclaredProp);
 
   const propRows = component.props.map((prop) => [
-    resolvePropName(prop, framework) + (prop.provenance === 'observed' ? ' †' : ''),
+    resolvePropName(prop, framework) + (isUndeclaredProp(prop) ? ' †' : ''),
     renderType(prop),
     prop.default,
     prop.required ? 'yes' : '',
@@ -295,7 +297,9 @@ function renderComponent(component: AgentComponent, framework: Framework, full: 
   const propsTable = table(['prop', 'type', 'default', 'required', 'description'], propRows);
   const naming = [
     bindingSyntaxFor(framework),
-    hasObserved ? '_† observed in stories, not declared by the component._' : '',
+    hasUndeclared
+      ? '_† not declared by the component — seen only in stories or Storybook controls. May not exist in your IGDS version; check its typings before use._'
+      : '',
   ]
     .filter(Boolean)
     .join('\n');

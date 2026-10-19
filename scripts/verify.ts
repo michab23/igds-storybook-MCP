@@ -190,6 +190,22 @@ async function main(): Promise<void> {
   check(/Dropdown/.test(search), 'search finds a known component');
   check(search.length < 2_500, 'search stays small', `${search.length} chars`);
 
+  // #8: story-only controls never pose as declared API.
+  const isLtrProps = components.filter((component) => component.props.some((prop) => prop.name === 'is-ltr'));
+  check(!isLtrProps.length, 'Storybook isLtr control is not served as a prop', isLtrProps.map((c) => c.name).join(', '));
+  const searchField = await callTool('get-component', { component: 'Search Field', framework: 'react' });
+  check(
+    /\| withoutSuggestions † \|/.test(searchField) && /\| fullWidth † \|/.test(searchField) && /\| placeholder \|/.test(searchField),
+    'undeclared props are marked †, declared ones are not'
+  );
+
+  // #14: every component answer says which IGDS data it reflects.
+  check(
+    /_Data: IGDS Storybook `develop` \(scraped \d{4}-\d{2}-\d{2}\); imports and event names verified against IGDS 0\.1\.37\./.test(searchField),
+    'get-component states its data source and verified IGDS version'
+  );
+  check(store.meta().source?.verifiedAgainst === '0.1.37', 'igds://meta carries the verified IGDS version');
+
   const missing = await callTool('get-component', { component: 'NoSuchComponent' });
   check(/search-components/.test(missing), 'unknown component points at search');
 

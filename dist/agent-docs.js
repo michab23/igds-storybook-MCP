@@ -30,6 +30,14 @@ export function propNameFor(name, framework) {
  * spelling when we have one (which can be irregular, like React's literal `multiexpand`),
  * otherwise the conventional derivation.
  */
+/**
+ * True when nothing the component declares backs this prop: it was only seen in story
+ * markup, or only exists as a Storybook control (argTypes). Checked against IGDS 0.1.37,
+ * 89 of 117 argTypes-only props did not exist on the component at all.
+ */
+export function isUndeclaredProp(prop) {
+    return prop.provenance === 'observed' || prop.provenance === 'argtypes';
+}
 export function resolvePropName(prop, framework) {
     return prop.names?.[framework] || propNameFor(prop.name, framework);
 }
@@ -174,9 +182,20 @@ export class AgentDocsStore {
         return {
             scrapedAt: docs.scrapedAt,
             builtAt: docs.builtAt,
+            source: docs.source,
             components: Object.keys(docs.components).length,
             notes: docs.notes,
         };
     }
+}
+/** One line telling an agent what IGDS release the answer reflects. */
+export function provenanceLine(meta) {
+    const channel = meta.source?.storybookChannel;
+    const scraped = meta.scrapedAt ? meta.scrapedAt.slice(0, 10) : 'unknown date';
+    const from = channel ? `IGDS Storybook \`${channel}\` (scraped ${scraped})` : `IGDS Storybook (scraped ${scraped})`;
+    const verified = meta.source?.verifiedAgainst
+        ? `; imports and event names verified against IGDS ${meta.source.verifiedAgainst}`
+        : '; package version unknown';
+    return `_Data: ${from}${verified}. If your installed IGDS differs, its typings win._`;
 }
 //# sourceMappingURL=agent-docs.js.map

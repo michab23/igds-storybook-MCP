@@ -106,11 +106,20 @@ export interface AgentComponent {
   };
 }
 
+/** What the data describes. The IGDS Storybook does not expose its package version. */
+export interface DataSource {
+  /** Storybook channel the scrape came from, e.g. `develop` (unreleased code). */
+  storybookChannel?: string;
+  /** IGDS release the import shapes and event names were checked against, set by the operator. */
+  verifiedAgainst?: string;
+}
+
 export interface AgentDocs {
   /** Schema version of this artifact, not the server version. */
   schema: number;
   scrapedAt: string;
   builtAt: string;
+  source?: DataSource;
   categories: string[];
   components: Record<string, AgentComponent>;
   /** Known gaps, surfaced to agents rather than hidden. */
@@ -140,6 +149,15 @@ export function propNameFor(name: string, framework: Framework): string {
  * spelling when we have one (which can be irregular, like React's literal `multiexpand`),
  * otherwise the conventional derivation.
  */
+/**
+ * True when nothing the component declares backs this prop: it was only seen in story
+ * markup, or only exists as a Storybook control (argTypes). Checked against IGDS 0.1.37,
+ * 89 of 117 argTypes-only props did not exist on the component at all.
+ */
+export function isUndeclaredProp(prop: AgentProp): boolean {
+  return prop.provenance === 'observed' || prop.provenance === 'argtypes';
+}
+
 export function resolvePropName(prop: AgentProp, framework: Framework): string {
   return prop.names?.[framework] || propNameFor(prop.name, framework);
 }
@@ -300,13 +318,25 @@ export class AgentDocsStore {
     return this.load().categories;
   }
 
-  meta(): { scrapedAt: string; builtAt: string; components: number; notes: string[] } {
+  meta(): { scrapedAt: string; builtAt: string; source?: DataSource; components: number; notes: string[] } {
     const docs = this.load();
     return {
       scrapedAt: docs.scrapedAt,
       builtAt: docs.builtAt,
+      source: docs.source,
       components: Object.keys(docs.components).length,
       notes: docs.notes,
     };
   }
+}
+
+/** One line telling an agent what IGDS release the answer reflects. */
+export function provenanceLine(meta: { scrapedAt: string; source?: DataSource }): string {
+  const channel = meta.source?.storybookChannel;
+  const scraped = meta.scrapedAt ? meta.scrapedAt.slice(0, 10) : 'unknown date';
+  const from = channel ? `IGDS Storybook \`${channel}\` (scraped ${scraped})` : `IGDS Storybook (scraped ${scraped})`;
+  const verified = meta.source?.verifiedAgainst
+    ? `; imports and event names verified against IGDS ${meta.source.verifiedAgainst}`
+    : '; package version unknown';
+  return `_Data: ${from}${verified}. If your installed IGDS differs, its typings win._`;
 }
