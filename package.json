@@ -14,7 +14,8 @@
     "build:docs": "tsx src/build-agent-docs.ts",
     "verify": "tsx scripts/verify.ts",
     "verify:http": "tsx scripts/verify-http.ts",
-    "build:icons": "tsx scripts/build-icon-index.ts"
+    "build:icons": "tsx scripts/build-icon-index.ts",
+    "scrape:manifest": "tsx scripts/fetch-manifest.ts"
   },
   "keywords": [
     "mcp",

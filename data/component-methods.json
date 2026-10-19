@@ -1,0 +1,82 @@
+{
+  "_comment": "Public methods consumers actually call, by component tag. IGDS does not mark internal methods private (the manifest lists ~600 'public' methods, 3 documented), so this list is curated. Signatures come from data/igds-manifest.json; a method listed here but missing from the manifest is skipped with a build warning. Each entry was checked against the @igds/core-web 0.1.37 typings.",
+
+  "igds-toast": {
+    "class": "Toast",
+    "methods": {
+      "show": "Display the toast. Required for type=\"floating\": a floating toast stays hidden (display: none) until show() is called; there is no `open` prop. Moves the element into a shared toast container.",
+      "close": "Animate the toast out, move it back to its original parent, then emit igds-close."
+    }
+  },
+  "igds-drawer": {
+    "class": "Drawer",
+    "methods": {
+      "show": "Open the drawer.",
+      "hide": "Close the drawer."
+    }
+  },
+  "igds-modal": {
+    "class": "Modal",
+    "methods": {
+      "requestClose": "Close the modal as if the user dismissed it (sets open = false). Prefer controlling the `open` prop."
+    }
+  },
+  "igds-button": {
+    "class": "Button",
+    "methods": { "focus": "Move focus to the inner native button." }
+  },
+  "igds-input": {
+    "class": "Input",
+    "methods": {
+      "checkValidity": "Run constraint validation without showing UI; returns whether the value is valid.",
+      "reportValidity": "Run constraint validation and show the validation message if invalid."
+    }
+  },
+  "igds-checkbox": {
+    "class": "Checkbox",
+    "methods": {
+      "checkValidity": "Run constraint validation without showing UI; returns whether the value is valid.",
+      "reportValidity": "Run constraint validation and show the validation message if invalid."
+    }
+  },
+  "igds-radio": {
+    "class": "RadioButton",
+    "methods": {
+      "checkValidity": "Run constraint validation without showing UI; returns whether the value is valid.",
+      "reportValidity": "Run constraint validation and show the validation message if invalid."
+    }
+  },
+  "igds-rich-text-editor": {
+    "class": "RichTextEditor",
+    "methods": {
+      "checkValidity": "Run constraint validation without showing UI; returns whether the value is valid.",
+      "reportValidity": "Run constraint validation and show the validation message if invalid."
+    }
+  },
+  "igds-audio-recorder": {
+    "class": "AudioRecorder",
+    "methods": {
+      "start": "Start recording.",
+      "stop": "Stop recording; emits igds-stop with the recording details."
+    }
+  },
+  "igds-list": {
+    "class": "List",
+    "methods": {
+      "openItem": "Expand the item with this id.",
+      "closeItem": "Collapse the item with this id.",
+      "toggleItem": "Toggle the item with this id."
+    }
+  },
+  "igds-table": {
+    "class": "Table",
+    "methods": {
+      "resetSortingOrder": "Clear every column's sorting order.",
+      "focusCellByAddress": "Move keyboard focus to a cell (requires `focusable`)."
+    }
+  },
+  "igds-sidebar": {
+    "class": "Sidebar",
+    "methods": { "closeAllSubMenus": "Collapse every open submenu." }
+  }
+}
