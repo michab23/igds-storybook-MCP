@@ -112,9 +112,15 @@ export declare function propNameFor(name: string, framework: Framework): string;
  */
 export declare function resolvePropName(prop: AgentProp, framework: Framework): string;
 /**
+ * React's prop for a raw custom event, as `@igds/react` maps it through `@lit/react`'s
+ * `createComponent({ events })`: `igds-cell-link-click` → `onIgdsCellLinkClick`.
+ */
+export declare function reactEventPropFor(eventName: string): string;
+/**
  * The name to actually listen for in this framework: IGDS's own documented spelling for
  * it (React's synthetic `onIgdsToggle` vs. everyone else's raw `igds-toggle`), or the
- * canonical name when no framework-specific spelling was captured.
+ * canonical name when no framework-specific spelling was captured. React never listens by
+ * the raw name, so for React an undocumented event gets the derived `onIgds*` prop.
  */
 export declare function resolveEventName(event: AgentEvent, framework: Framework): string;
 /** How props and events are written in each target, shown alongside the props table. */

@@ -28,6 +28,7 @@ import {
   MinedTags,
   toUsageSnippet,
 } from './light-dom.js';
+import { cleanSnippet } from './snippet-clean.js';
 import { buildChromeLines, cleanComponentSections, extractGuidance } from './zeroheight-clean.js';
 import { getZeroheightComponentName } from './scrapers/cross-reference.js';
 import { parseLiteralUnion } from './scrapers/storybook-api.js';
@@ -46,6 +47,19 @@ const SNIPPET_PREFERENCE: Framework[] = ['core-web', 'angular', 'react'];
 
 // One guaranteed slot per framework, plus headroom for a couple of extra variety snippets.
 const MAX_USAGE_SNIPPETS = 5;
+
+/** Story sources scraped before the cap was raised were cut at exactly this many characters. */
+const LEGACY_SOURCE_CAP = 3000;
+
+/**
+ * A source cut mid-tag can't be copied as-is: drop the partial last line and say so, so the
+ * agent knows the snippet is incomplete rather than writing `<Pagi` into its code.
+ */
+function markTruncated(code: string, framework: Framework): string {
+  const complete = code.slice(0, code.lastIndexOf('\n')).trimEnd();
+  const marker = framework === 'react' ? '{/* … truncated in the scraped source */}' : '<!-- … truncated in the scraped source -->';
+  return `${complete}\n${marker}`;
+}
 
 function kebab(name: string): string {
   return name
@@ -191,7 +205,16 @@ function cleanDefault(raw: string | undefined, values?: string[]): string | unde
  * Templates may use {component} (PascalCase name), {package}, {tag} (igds-accordion-item)
  * and {path} (accordion-item — the tag without the igds- prefix, for deep subpath imports).
  */
-type PackageEntry = string | { package: string; import?: string };
+type PackageEntry =
+  | string
+  | {
+      package: string;
+      import?: string;
+      /** Tag → real export subpath, where the two differ (igds-spinbox → spin-box). */
+      pathOverrides?: Record<string, string>;
+      /** Child elements are exported from their parent's subpath (TableRow from ./table). */
+      childrenUseParentPath?: boolean;
+    };
 type PackageConfig = Partial<Record<Framework, PackageEntry>> & { _comment?: string };
 
 const DEFAULT_IMPORT_TEMPLATES: Record<Framework, string> = {
@@ -204,22 +227,35 @@ const DEFAULT_IMPORT_TEMPLATES: Record<Framework, string> = {
   angular: "import { Igds{component} } from '{package}/{path}';",
 };
 
+/** Root-of-package import shape, used when a subpath template has no path to fill in. */
+const ROOT_IMPORT_TEMPLATES: Record<Framework, string> = {
+  react: "import { {component} } from '{package}';",
+  'core-web': "import '{package}';",
+  angular: "import { Igds{component} } from '{package}';",
+};
+
 function renderImport(
   entry: PackageEntry | undefined,
   framework: Framework,
   componentName: string,
-  tag: string | undefined
+  tag: string | undefined,
+  parentTag?: string
 ): string | undefined {
   if (!entry) return undefined;
 
   const packageName = typeof entry === 'string' ? entry : entry.package;
   if (!packageName) return undefined;
 
-  const template =
-    (typeof entry === 'string' ? undefined : entry.import) || DEFAULT_IMPORT_TEMPLATES[framework];
+  const options = typeof entry === 'string' ? undefined : entry;
+  let template = options?.import || DEFAULT_IMPORT_TEMPLATES[framework];
 
-  // Deep-import subpath: the tag without its igds- prefix (accordion-item).
-  const path = (tag || '').replace(/^igds-/, '');
+  // Deep-import subpath: the tag without its igds- prefix (accordion-item), or the parent's
+  // when children are exported alongside it, with explicit overrides where they differ.
+  const pathTag = (options?.childrenUseParentPath && parentTag) || tag || '';
+  const path = options?.pathOverrides?.[pathTag] ?? pathTag.replace(/^igds-/, '');
+
+  // No tag means no known subpath: point at the package root rather than emit `pkg/`.
+  if (!path && template.includes('{path}')) template = ROOT_IMPORT_TEMPLATES[framework];
 
   return template
     .replace(/\{component\}/g, componentName)
@@ -555,8 +591,15 @@ function buildUsage(componentName: string, raw: RawStorybookData): UsageSnippet[
 
   const tryAdd = (framework: Framework, story: any): boolean => {
     const rawCode = story.sourceCode?.trim();
-    const code = rawCode ? stripPresentationChrome(rawCode) : toUsageSnippet(story.renderedHtml || '');
-    if (!code) return false;
+    const truncated = (story.sourceCode?.length ?? 0) >= LEGACY_SOURCE_CAP;
+    const stripped = rawCode ? stripPresentationChrome(rawCode) : toUsageSnippet(story.renderedHtml || '');
+    const extracted = stripped && truncated ? markTruncated(stripped, framework) : stripped;
+    if (!extracted) return false;
+
+    // Strip story scaffolding and deprecated APIs; skip snippets that only demonstrate those.
+    const cleaned = cleanSnippet(extracted, framework, componentName);
+    if (cleaned.drop || !cleaned.code) return false;
+    const code = cleaned.code;
 
     // Different stories often render the same markup; keep the vocabulary, not the repeats.
     const signature = code.replace(/\s+/g, '');
@@ -846,7 +889,7 @@ function attachSubComponents(
 
     const imports: Partial<Record<Framework, string>> = {};
     for (const framework of parent.frameworks) {
-      const statement = renderImport(packages[framework], framework, name, tag);
+      const statement = renderImport(packages[framework], framework, name, tag, parent.tag);
       if (statement) imports[framework] = statement;
     }
 

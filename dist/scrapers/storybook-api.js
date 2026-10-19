@@ -142,7 +142,9 @@ export async function extractStorySources(page, baseUrl, framework, componentId)
         continue;
       }
       const code = (node.textContent || '').trim();
-      if (code && !sources[currentStory]) sources[currentStory] = code.slice(0, 3000);
+      // Keep whole snippets: a cut-off snippet is code an agent can't use. Response size is
+      // enforced when serving (withinBudget), not here. 20k only guards against runaway pages.
+      if (code && !sources[currentStory]) sources[currentStory] = code.slice(0, 20000);
     }
 
     return sources;

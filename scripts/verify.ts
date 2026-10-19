@@ -14,7 +14,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { registerAllTools } from '../src/tools.js';
-import { AgentDocsStore } from '../src/agent-docs.js';
+import { AgentDocsStore, reactEventPropFor, resolveEventName } from '../src/agent-docs.js';
+import { cleanSnippet } from '../src/snippet-clean.js';
 import { SERVER_INFO } from '../src/server-info.js';
 
 /** Worst measured `get-component` response before this work, in characters. */
@@ -77,6 +78,68 @@ async function main(): Promise<void> {
     'components document legal values',
     `${withValues.length}/${components.length}`
   );
+
+  // --- 1b. Usage snippets are copyable, current API (#6, #7) ---------------------------
+  const STORY_SCAFFOLDING: [string, RegExp][] = [
+    ['DevTools function placeholder', /function\s*[A-Za-z0-9_$]*\s*\(\)\s*\{\s*\}/],
+    ['DevTools circular ref', /\[Circular\]/],
+    ['inline JSX style object', /\sstyle=\{\{/],
+    ['inline HTML style', /\sstyle="/],
+    ['CSS-module hashed class', /class(?:Name)?="[^"]*_[A-Za-z0-9-]*?_[a-z0-9]{5}_\d+/],
+    ['React.Fragment key', /<React\.Fragment/],
+    ['deprecated Icon name lookup (React)', /<Icon\b[^>]*\sname="/],
+    ['cut-off tag at end of snippet', /<[A-Za-z][\w.-]*\s*$/],
+  ];
+  const scaffoldHits: string[] = [];
+  for (const component of components) {
+    for (const snippet of component.usage) {
+      for (const [label, pattern] of STORY_SCAFFOLDING) {
+        if (snippet.framework !== 'react' && label.includes('React')) continue;
+        if (pattern.test(snippet.code)) scaffoldHits.push(`${component.name}/${snippet.story}: ${label}`);
+      }
+      if (/<igds-dynamic-icon\b/.test(snippet.code) && !/dynamic\s*icon/i.test(component.name)) {
+        scaffoldHits.push(`${component.name}/${snippet.story}: igds-dynamic-icon`);
+      }
+    }
+  }
+  check(!scaffoldHits.length, 'usage snippets carry no story scaffolding or deprecated icons', scaffoldHits.slice(0, 3).join('; '));
+
+  const cleaned = cleanSnippet(
+    '<div\n  className="_box_ab12c_1"\n  style={{\n    padding: 24\n  }}\n>\n  <Button\n    ref={{\n      current: \'[Circular]\'\n    }}\n    onIgdsClick={function B5(){}}\n  >\n    <Icon name="chevron-down" />\n  </Button>\n</div>',
+    'react'
+  ).code;
+  check(
+    cleaned === "// import { chevronDown } from '@igds/icons';\n<div>\n  <Button\n    onIgdsClick={() => {}}\n  >\n    <Icon node={chevronDown} />\n  </Button>\n</div>",
+    'cleanSnippet strips scaffolding and rewrites icons',
+    JSON.stringify(cleaned)
+  );
+  const collapsed = cleanSnippet(['<ul>', ...Array.from({ length: 6 }, (_, i) => `  <li>${i}</li>`), '</ul>'].join('\n'), 'core-web').code;
+  check(
+    collapsed === '<ul>\n  <li>0</li>\n  <li>1</li>\n  <!-- … 4 more like the above -->\n</ul>',
+    'cleanSnippet collapses repeated placeholder siblings',
+    JSON.stringify(collapsed)
+  );
+
+  // --- 1c. Imports use per-component subpaths (#5) ------------------------------------
+  const tagged = components.filter((component) => component.tag && component.imports?.react);
+  const barrel = tagged.filter((component) => /from '@igds\/react';$/.test(component.imports?.react || ''));
+  check(!barrel.length, 'React imports use per-component subpaths', barrel.map((c) => c.name).join(', '));
+  const tableRow = store.get('Table')?.subComponents?.find((child) => child.tag === 'igds-table-row');
+  check(
+    tableRow?.imports?.react === "import { TableRow } from '@igds/react/table';",
+    'child elements import from their parent subpath',
+    tableRow?.imports?.react
+  );
+
+  // --- 1d. React event names are props, never raw DOM names (#9) ---------------------
+  check(reactEventPropFor('igds-cell-link-click') === 'onIgdsCellLinkClick', 'React event prop derivation');
+  const rawReactEvents = components.flatMap((component) =>
+    [...(component.events || []), ...(component.subComponents || []).flatMap((child) => child.events || [])]
+      .map((event) => resolveEventName(event, 'react'))
+      .filter((name) => !/^on[A-Z]/.test(name))
+      .map((name) => `${component.name}: ${name}`)
+  );
+  check(!rawReactEvents.length, 'React event names resolve to onIgds* props', rawReactEvents.slice(0, 3).join('; '));
 
   // --- 2. Tool surface and response budgets ----------------------------------------
   const server = new McpServer(SERVER_INFO);
