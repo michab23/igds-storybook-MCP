@@ -115,7 +115,27 @@ function collapseRepeatedSiblings(code, comment) {
     }
     return out.join('\n');
 }
-export function cleanSnippet(code, framework, componentName = '') {
+/** Markup that starts an inline SVG icon fragment. */
+const ICON_MARKUP = '<(?:path|g|circle|rect|polygon|ellipse)\\b';
+/**
+ * Replace inline icon markup with the @igds/icons export it came from, when known:
+ * `icon: '<path d="M20 3…"/>'` → `icon: building`, and `icon="<path d=&quot;…"` → `icon={building}`.
+ * Unknown markup (a story's own custom icon) is left as is.
+ */
+function replaceInlineIcons(code, lookup) {
+    const icons = new Set();
+    const swap = (markup, replace, whole) => {
+        const name = lookup(markup);
+        if (!name)
+            return whole;
+        icons.add(name);
+        return replace(name);
+    };
+    let result = code.replace(new RegExp(`'(${ICON_MARKUP}[^']*)'`, 'g'), (whole, markup) => swap(markup, (n) => n, whole));
+    result = result.replace(new RegExp(`(\\s[\\w-]+)="(${ICON_MARKUP}[^"]*)"`, 'g'), (whole, attr, markup) => swap(markup, (n) => `${attr}={${n}}`, whole));
+    return { code: result, icons: [...icons] };
+}
+export function cleanSnippet(code, framework, componentName = '', lookupIcon = () => undefined) {
     // The legacy dynamic icon loads the whole icon registry at runtime; IGDS deprecates it.
     // Only its own component page may still show it.
     if (/<igds-dynamic-icon\b/.test(code) && !/dynamic\s*icon/i.test(componentName)) {
@@ -139,8 +159,13 @@ export function cleanSnippet(code, framework, componentName = '') {
     // An element whose attributes were all removed prints as `<div\n>`; tidy to `<div>`.
     result = result.replace(/<([A-Za-z][\w.-]*)\s*\n\s*>/g, '<$1>');
     let icons = [];
-    if (isJsx)
-        ({ code: result, icons } = rewriteReactIconNames(result));
+    if (isJsx) {
+        let named;
+        let inlined;
+        ({ code: result, icons: named } = rewriteReactIconNames(result));
+        ({ code: result, icons: inlined } = replaceInlineIcons(result, lookupIcon));
+        icons = [...new Set([...named, ...inlined])];
+    }
     result = collapseRepeatedSiblings(result, (n) => isJsx ? `{/* … ${n} more like the above */}` : `<!-- … ${n} more like the above -->`);
     if (icons.length)
         result = `// import { ${icons.sort().join(', ')} } from '@igds/icons';\n${result}`;

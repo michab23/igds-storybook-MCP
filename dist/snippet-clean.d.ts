@@ -14,5 +14,5 @@ export interface CleanedSnippet {
     /** Set when the snippet only demonstrates something agents must not copy. */
     drop?: string;
 }
-export declare function cleanSnippet(code: string, framework: 'react' | 'angular' | 'core-web', componentName?: string): CleanedSnippet;
+export declare function cleanSnippet(code: string, framework: 'react' | 'angular' | 'core-web', componentName?: string, lookupIcon?: (markup: string) => string | undefined): CleanedSnippet;
 //# sourceMappingURL=snippet-clean.d.ts.map

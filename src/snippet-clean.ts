@@ -118,13 +118,41 @@ function collapseRepeatedSiblings(code: string, comment: (n: number) => string):
   return out.join('\n');
 }
 
+/** Markup that starts an inline SVG icon fragment. */
+const ICON_MARKUP = '<(?:path|g|circle|rect|polygon|ellipse)\\b';
+
+/**
+ * Replace inline icon markup with the @igds/icons export it came from, when known:
+ * `icon: '<path d="M20 3…"/>'` → `icon: building`, and `icon="<path d=&quot;…"` → `icon={building}`.
+ * Unknown markup (a story's own custom icon) is left as is.
+ */
+function replaceInlineIcons(code: string, lookup: (markup: string) => string | undefined): { code: string; icons: string[] } {
+  const icons = new Set<string>();
+  const swap = (markup: string, replace: (name: string) => string, whole: string) => {
+    const name = lookup(markup);
+    if (!name) return whole;
+    icons.add(name);
+    return replace(name);
+  };
+  let result = code.replace(new RegExp(`'(${ICON_MARKUP}[^']*)'`, 'g'), (whole, markup: string) => swap(markup, (n) => n, whole));
+  result = result.replace(new RegExp(`(\\s[\\w-]+)="(${ICON_MARKUP}[^"]*)"`, 'g'), (whole, attr: string, markup: string) =>
+    swap(markup, (n) => `${attr}={${n}}`, whole)
+  );
+  return { code: result, icons: [...icons] };
+}
+
 export interface CleanedSnippet {
   code: string;
   /** Set when the snippet only demonstrates something agents must not copy. */
   drop?: string;
 }
 
-export function cleanSnippet(code: string, framework: 'react' | 'angular' | 'core-web', componentName = ''): CleanedSnippet {
+export function cleanSnippet(
+  code: string,
+  framework: 'react' | 'angular' | 'core-web',
+  componentName = '',
+  lookupIcon: (markup: string) => string | undefined = () => undefined
+): CleanedSnippet {
   // The legacy dynamic icon loads the whole icon registry at runtime; IGDS deprecates it.
   // Only its own component page may still show it.
   if (/<igds-dynamic-icon\b/.test(code) && !/dynamic\s*icon/i.test(componentName)) {
@@ -154,7 +182,13 @@ export function cleanSnippet(code: string, framework: 'react' | 'angular' | 'cor
   result = result.replace(/<([A-Za-z][\w.-]*)\s*\n\s*>/g, '<$1>');
 
   let icons: string[] = [];
-  if (isJsx) ({ code: result, icons } = rewriteReactIconNames(result));
+  if (isJsx) {
+    let named: string[];
+    let inlined: string[];
+    ({ code: result, icons: named } = rewriteReactIconNames(result));
+    ({ code: result, icons: inlined } = replaceInlineIcons(result, lookupIcon));
+    icons = [...new Set([...named, ...inlined])];
+  }
 
   result = collapseRepeatedSiblings(result, (n) =>
     isJsx ? `{/* … ${n} more like the above */}` : `<!-- … ${n} more like the above -->`

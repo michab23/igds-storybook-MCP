@@ -16,6 +16,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { registerAllTools } from '../src/tools.js';
 import { AgentDocsStore, reactEventPropFor, resolveEventName } from '../src/agent-docs.js';
 import { cleanSnippet } from '../src/snippet-clean.js';
+import { iconLookup, IconIndex } from '../src/icon-index.js';
 import { SERVER_INFO } from '../src/server-info.js';
 
 /** Worst measured `get-component` response before this work, in characters. */
@@ -120,10 +121,38 @@ async function main(): Promise<void> {
     JSON.stringify(collapsed)
   );
 
+  // Inline icon markup is replaced by the @igds/icons export it came from.
+  const iconIndex = JSON.parse(readFileSync(join(process.cwd(), 'data', 'icon-index.json'), 'utf-8')) as IconIndex;
+  const lookupIcon = iconLookup(iconIndex);
+  check(
+    !/<path/.test(artifact.slice(artifact.indexOf('"icons"'))) && Object.keys(iconIndex.icons).length > 400,
+    'icon index holds hashes only, for every icon',
+    `${Object.keys(iconIndex.icons).length} icons`
+  );
+  check(iconIndex.version === store.meta().source?.verifiedAgainst, 'icon index matches the verified IGDS version', iconIndex.version);
+  const inlineKnown = components.flatMap((component) =>
+    component.usage
+      .filter((snippet) => snippet.framework === 'react')
+      .flatMap((snippet) => [...snippet.code.matchAll(/'(<(?:path|g)\b[^']*)'|="(<(?:path|g)\b[^"]*)"/g)])
+      .filter((match) => lookupIcon(match[1] || match[2]))
+      .map(() => component.name)
+  );
+  check(!inlineKnown.length, 'React snippets name known icons instead of inlining their markup', [...new Set(inlineKnown)].join(', '));
+  const knownPath = Object.entries(iconIndex.icons)[0];
+  check(
+    cleanSnippet("<Input\n  icon=\"x\"\n/>", 'react', '', (m) => (m === 'x' ? 'never' : undefined)).code.includes('icon="x"'),
+    'cleanSnippet leaves non-icon attribute values alone',
+    knownPath?.[1]
+  );
+
   // --- 1c. Imports use per-component subpaths (#5) ------------------------------------
-  const tagged = components.filter((component) => component.tag && component.imports?.react);
-  const barrel = tagged.filter((component) => /from '@igds\/react';$/.test(component.imports?.react || ''));
-  check(!barrel.length, 'React imports use per-component subpaths', barrel.map((c) => c.name).join(', '));
+  const barrel = components.filter((component) => /from '@igds\/(react|angular)';/.test(component.imports?.react || component.imports?.angular || ''));
+  check(!barrel.length, 'no import points at a package root', barrel.map((c) => c.name).join(', '));
+  check(
+    store.get('Filter')?.imports?.react === "import { HorizontalFilter, VerticalFilter } from '@igds/react/filters';",
+    'tagless components use their verified import',
+    store.get('Filter')?.imports?.react
+  );
   const tableRow = store.get('Table')?.subComponents?.find((child) => child.tag === 'igds-table-row');
   check(
     tableRow?.imports?.react === "import { TableRow } from '@igds/react/table';",
