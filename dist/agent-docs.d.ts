@@ -87,11 +87,19 @@ export interface AgentComponent {
         zeroheight?: string;
     };
 }
+/** What the data describes. The IGDS Storybook does not expose its package version. */
+export interface DataSource {
+    /** Storybook channel the scrape came from, e.g. `develop` (unreleased code). */
+    storybookChannel?: string;
+    /** IGDS release the import shapes and event names were checked against, set by the operator. */
+    verifiedAgainst?: string;
+}
 export interface AgentDocs {
     /** Schema version of this artifact, not the server version. */
     schema: number;
     scrapedAt: string;
     builtAt: string;
+    source?: DataSource;
     categories: string[];
     components: Record<string, AgentComponent>;
     /** Known gaps, surfaced to agents rather than hidden. */
@@ -110,6 +118,12 @@ export declare function propNameFor(name: string, framework: Framework): string;
  * spelling when we have one (which can be irregular, like React's literal `multiexpand`),
  * otherwise the conventional derivation.
  */
+/**
+ * True when nothing the component declares backs this prop: it was only seen in story
+ * markup, or only exists as a Storybook control (argTypes). Checked against IGDS 0.1.37,
+ * 89 of 117 argTypes-only props did not exist on the component at all.
+ */
+export declare function isUndeclaredProp(prop: AgentProp): boolean;
 export declare function resolvePropName(prop: AgentProp, framework: Framework): string;
 /**
  * React's prop for a raw custom event, as `@igds/react` maps it through `@lit/react`'s
@@ -148,8 +162,14 @@ export declare class AgentDocsStore {
     meta(): {
         scrapedAt: string;
         builtAt: string;
+        source?: DataSource;
         components: number;
         notes: string[];
     };
 }
+/** One line telling an agent what IGDS release the answer reflects. */
+export declare function provenanceLine(meta: {
+    scrapedAt: string;
+    source?: DataSource;
+}): string;
 //# sourceMappingURL=agent-docs.d.ts.map
