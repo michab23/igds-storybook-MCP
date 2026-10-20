@@ -486,7 +486,7 @@ function stripPresentationChrome(code) {
     // markers used to sit — pure noise, not meaningful structure in the source.
     return result.replace(/\n[ \t]*(?:\n[ \t]*)+/g, '\n').trim();
 }
-function buildUsage(componentName, raw, lookupIcon) {
+function buildUsage(componentName, raw, lookupIcon, clickEmitters) {
     const snippets = [];
     const seen = new Set();
     const tryAdd = (framework, story) => {
@@ -497,7 +497,7 @@ function buildUsage(componentName, raw, lookupIcon) {
         if (!extracted)
             return false;
         // Strip story scaffolding and deprecated APIs; skip snippets that only demonstrate those.
-        const cleaned = cleanSnippet(extracted, framework, componentName, lookupIcon);
+        const cleaned = cleanSnippet(extracted, framework, { componentName, lookupIcon, clickEmitters });
         if (cleaned.drop || !cleaned.code)
             return false;
         const code = cleaned.code;
@@ -673,7 +673,7 @@ function main() {
             methods: buildMethods(tag, curatedMethods, manifestMethods, staleMethods),
             slots: buildSlots(tag, slotsFile),
             notes: tag ? notesByTag.get(tag) : undefined,
-            usage: buildUsage(name, raw, lookupIcon),
+            usage: [],
             guidance,
             refs: {
                 storybook: storybookRefs,
@@ -682,6 +682,19 @@ function main() {
         };
     }
     const unattachedTags = attachSubComponents(components, mined, raw, packages, slotsFile);
+    // Usage last: the cleaner needs every component's and child's events to know which React
+    // wrappers emit igds-click (their native onClick becomes onIgdsClick).
+    const emitsClick = (events) => (events || []).some((event) => eventKey(event.name) === 'igdsclick');
+    const clickEmitters = new Set();
+    for (const component of Object.values(components)) {
+        if (emitsClick(component.events))
+            clickEmitters.add(toPascalIdentifier(component.name));
+        for (const child of component.subComponents || [])
+            if (emitsClick(child.events))
+                clickEmitters.add(child.name);
+    }
+    for (const component of Object.values(components))
+        component.usage = buildUsage(component.name, raw, lookupIcon, clickEmitters);
     const knownTags = new Set(Object.values(components).map((component) => component.tag));
     const orphanNotes = [...notesByTag.keys()].filter((tag) => !knownTags.has(tag));
     if (orphanNotes.length) {

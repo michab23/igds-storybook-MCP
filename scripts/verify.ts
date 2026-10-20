@@ -109,13 +109,24 @@ async function main(): Promise<void> {
 
   const cleaned = cleanSnippet(
     '<div\n  className="_box_ab12c_1"\n  style={{\n    padding: 24\n  }}\n>\n  <Button\n    ref={{\n      current: \'[Circular]\'\n    }}\n    onIgdsClick={function B5(){}}\n  >\n    <Icon name="chevron-down" />\n  </Button>\n</div>',
-    'react'
+    'react',
+    { clickEmitters: new Set(['Button']) }
   ).code;
   check(
     cleaned === "// import { chevronDown } from '@igds/icons';\n<div>\n  <Button\n    onIgdsClick={() => {}}\n  >\n    <Icon node={chevronDown} />\n  </Button>\n</div>",
     'cleanSnippet strips scaffolding and rewrites icons',
     JSON.stringify(cleaned)
   );
+  const clicks = cleanSnippet('<div onClick={a}>\n  <Button onClick={b}>x</Button>\n  <Card onClick={c} />\n</div>', 'react', { clickEmitters: new Set(['Button']) }).code;
+  check(
+    clicks === '<div onClick={a}>\n  <Button onIgdsClick={b}>x</Button>\n  <Card onClick={c} />\n</div>',
+    'native onClick becomes onIgdsClick only on wrappers that emit igds-click',
+    JSON.stringify(clicks)
+  );
+  const nativeClicks = components.flatMap((component) =>
+    component.usage.filter((snippet) => snippet.framework === 'react' && /<Button\b[^>]*\sonClick=\{/.test(snippet.code)).map(() => component.name)
+  );
+  check(!nativeClicks.length, 'React snippets use onIgdsClick on Button', nativeClicks.join(', '));
   const collapsed = cleanSnippet(['<ul>', ...Array.from({ length: 6 }, (_, i) => `  <li>${i}</li>`), '</ul>'].join('\n'), 'core-web').code;
   check(
     collapsed === '<ul>\n  <li>0</li>\n  <li>1</li>\n  <!-- … 4 more like the above -->\n</ul>',
@@ -142,7 +153,7 @@ async function main(): Promise<void> {
   check(!inlineKnown.length, 'React snippets name known icons instead of inlining their markup', [...new Set(inlineKnown)].join(', '));
   const knownPath = Object.entries(iconIndex.icons)[0];
   check(
-    cleanSnippet("<Input\n  icon=\"x\"\n/>", 'react', '', (m) => (m === 'x' ? 'never' : undefined)).code.includes('icon="x"'),
+    cleanSnippet("<Input\n  icon=\"x\"\n/>", 'react', { lookupIcon: (m) => (m === 'x' ? 'never' : undefined) }).code.includes('icon="x"'),
     'cleanSnippet leaves non-icon attribute values alone',
     knownPath?.[1]
   );
@@ -246,8 +257,14 @@ async function main(): Promise<void> {
   // #10: public methods, with signatures from the manifest.
   const toast = await callTool('get-component', { component: 'Toast', framework: 'react' });
   check(
-    /## Methods/.test(toast) && /`show\(\)` \| Display the toast\. Required for type="floating"/.test(toast) && /ref\.current\?\.show\(\)/.test(toast),
+    /## Methods/.test(toast) && /`show\(\)` \| Display the toast\. Required for type="floating"/.test(toast) && /useRef<ToastWC>\(null\)` → `ref\.current\?\.show\(\)/.test(toast),
     'get-component lists curated methods with signature and call hint'
+  );
+  const modalHint = await callTool('get-component', { component: 'Modal', framework: 'react' });
+  const listHint = await callTool('get-component', { component: 'List', framework: 'core-web' });
+  check(
+    /useRef<ModalWC>\(null\)` → `ref\.current\?\.requestClose\(\)/.test(modalHint) && /querySelector\('igds-list'\)\.openItem\(…\)/.test(listHint),
+    'method call hints use the component\'s own class, tag and method'
   );
   const curated = JSON.parse(readFileSync(join(process.cwd(), 'data', 'component-methods.json'), 'utf-8')) as Record<string, { class: string; methods: Record<string, string> }>;
   const manifestClasses = JSON.parse(readFileSync(join(process.cwd(), 'data', 'igds-manifest.json'), 'utf-8')).classes as Record<string, { methods: { name: string }[] }>;

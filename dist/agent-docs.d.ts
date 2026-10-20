@@ -189,8 +189,12 @@ export declare function provenanceLine(meta: {
     scrapedAt: string;
     source?: DataSource;
 }): string;
-/** How to call an element method from each framework. */
-export declare function methodCallHintFor(framework: Framework): string;
+/**
+ * How to call an element method from each framework, using this component's own names:
+ * `reactName` is its React export (`Modal`, whose element class is exported as `ModalWC`),
+ * `tag` its custom element, and `call` an example call such as `requestClose()`.
+ */
+export declare function methodCallHintFor(framework: Framework, call: string, reactName?: string, tag?: string): string;
 /** How to put content into a named slot in each framework. */
 export declare function slotHintFor(framework: Framework, example: string): string;
 //# sourceMappingURL=agent-docs.d.ts.map

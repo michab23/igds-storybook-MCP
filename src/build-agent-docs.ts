@@ -641,7 +641,8 @@ function stripPresentationChrome(code: string): string {
 function buildUsage(
   componentName: string,
   raw: RawStorybookData,
-  lookupIcon: (markup: string) => string | undefined
+  lookupIcon: (markup: string) => string | undefined,
+  clickEmitters: ReadonlySet<string>
 ): UsageSnippet[] {
   const snippets: UsageSnippet[] = [];
   const seen = new Set<string>();
@@ -654,7 +655,7 @@ function buildUsage(
     if (!extracted) return false;
 
     // Strip story scaffolding and deprecated APIs; skip snippets that only demonstrate those.
-    const cleaned = cleanSnippet(extracted, framework, componentName, lookupIcon);
+    const cleaned = cleanSnippet(extracted, framework, { componentName, lookupIcon, clickEmitters });
     if (cleaned.drop || !cleaned.code) return false;
     const code = cleaned.code;
 
@@ -854,7 +855,7 @@ function main(): void {
       methods: buildMethods(tag, curatedMethods, manifestMethods, staleMethods),
       slots: buildSlots(tag, slotsFile),
       notes: tag ? notesByTag.get(tag) : undefined,
-      usage: buildUsage(name, raw, lookupIcon),
+      usage: [],
       guidance,
       refs: {
         storybook: storybookRefs,
@@ -864,6 +865,16 @@ function main(): void {
   }
 
   const unattachedTags = attachSubComponents(components, mined, raw, packages, slotsFile);
+
+  // Usage last: the cleaner needs every component's and child's events to know which React
+  // wrappers emit igds-click (their native onClick becomes onIgdsClick).
+  const emitsClick = (events?: AgentEvent[]) => (events || []).some((event) => eventKey(event.name) === 'igdsclick');
+  const clickEmitters = new Set<string>();
+  for (const component of Object.values(components)) {
+    if (emitsClick(component.events)) clickEmitters.add(toPascalIdentifier(component.name));
+    for (const child of component.subComponents || []) if (emitsClick(child.events)) clickEmitters.add(child.name);
+  }
+  for (const component of Object.values(components)) component.usage = buildUsage(component.name, raw, lookupIcon, clickEmitters);
   const knownTags = new Set(Object.values(components).map((component) => component.tag));
   const orphanNotes = [...notesByTag.keys()].filter((tag) => !knownTags.has(tag));
   if (orphanNotes.length) {

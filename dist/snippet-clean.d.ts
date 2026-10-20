@@ -14,5 +14,13 @@ export interface CleanedSnippet {
     /** Set when the snippet only demonstrates something agents must not copy. */
     drop?: string;
 }
-export declare function cleanSnippet(code: string, framework: 'react' | 'angular' | 'core-web', componentName?: string, lookupIcon?: (markup: string) => string | undefined): CleanedSnippet;
+export interface CleanOptions {
+    /** Docs-page name: only its own page may still show igds-dynamic-icon. */
+    componentName?: string;
+    /** Icon markup → @igds/icons export name. */
+    lookupIcon?: (markup: string) => string | undefined;
+    /** React wrappers that emit igds-click, whose native onClick should be onIgdsClick. */
+    clickEmitters?: ReadonlySet<string>;
+}
+export declare function cleanSnippet(code: string, framework: 'react' | 'angular' | 'core-web', { componentName, lookupIcon, clickEmitters }?: CleanOptions): CleanedSnippet;
 //# sourceMappingURL=snippet-clean.d.ts.map
