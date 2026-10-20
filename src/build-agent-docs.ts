@@ -15,6 +15,7 @@ import {
   AgentDocs,
   AgentEvent,
   AgentMethod,
+  AgentSlot,
   AgentProp,
   AgentSubComponent,
   Framework,
@@ -44,6 +45,14 @@ const OUTPUT_FILE = join(DATA_DIR, 'igds-agent-docs.json');
 const ICON_INDEX_FILE = join(DATA_DIR, 'icon-index.json');
 const MANIFEST_FILE = join(DATA_DIR, 'igds-manifest.json');
 const METHODS_FILE = join(DATA_DIR, 'component-methods.json');
+const SLOTS_FILE = join(DATA_DIR, 'igds-slots.json');
+
+type SlotsFile = { fetchedAt: string; slots: Record<string, string[]> };
+
+function buildSlots(tag: string | undefined, slotsFile: SlotsFile | null): AgentSlot[] | undefined {
+  const names = tag ? slotsFile?.slots[tag] : undefined;
+  return names?.length ? names.map((name) => ({ name })) : undefined;
+}
 
 type CuratedMethods = Record<string, { class: string; methods: Record<string, string> }>;
 type ManifestMethodsFile = { fetchedAt: string; classes: Record<string, { methods: { name: string; signature: string }[] }> };
@@ -705,6 +714,9 @@ function main(): void {
     ? (JSON.parse(readFileSync(MANIFEST_FILE, 'utf-8')) as ManifestMethodsFile)
     : null;
   const staleMethods: string[] = [];
+  const slotsFile: SlotsFile | null = existsSync(SLOTS_FILE)
+    ? (JSON.parse(readFileSync(SLOTS_FILE, 'utf-8')) as SlotsFile)
+    : null;
 
   // Mine attribute vocabulary once, across every story of every framework.
   const mined: MinedTags = new Map();
@@ -834,6 +846,7 @@ function main(): void {
       props: buildProps(name, tag, raw, mined, parentGroups),
       events: buildEvents(parentGroups, raw, name),
       methods: buildMethods(tag, curatedMethods, manifestMethods, staleMethods),
+      slots: buildSlots(tag, slotsFile),
       usage: buildUsage(name, raw, lookupIcon),
       guidance,
       refs: {
@@ -843,7 +856,7 @@ function main(): void {
     };
   }
 
-  const unattachedTags = attachSubComponents(components, mined, raw, packages);
+  const unattachedTags = attachSubComponents(components, mined, raw, packages, slotsFile);
   if (staleMethods.length) {
     console.warn(`  WARNING: curated methods missing from the manifest (skipped): ${staleMethods.join(', ')}`);
   }
@@ -872,7 +885,7 @@ function main(): void {
     schema: SCHEMA_VERSION,
     scrapedAt: raw.scrapedAt,
     builtAt: new Date().toISOString(),
-    source: { storybookChannel, verifiedAgainst: packages.verifiedAgainst, manifestFetchedAt: manifestMethods?.fetchedAt },
+    source: { storybookChannel, verifiedAgainst: packages.verifiedAgainst, manifestFetchedAt: manifestMethods?.fetchedAt, slotsFetchedAt: slotsFile?.fetchedAt },
     categories: [...categories].sort(),
     components,
     notes,
@@ -899,7 +912,8 @@ function attachSubComponents(
   components: Record<string, AgentComponent>,
   mined: MinedTags,
   raw: RawStorybookData,
-  packages: PackageConfig
+  packages: PackageConfig,
+  slotsFile: SlotsFile | null
 ): string[] {
   const documented = new Map<string, AgentComponent>();
   for (const component of Object.values(components)) {
@@ -967,6 +981,7 @@ function attachSubComponents(
       tag,
       props,
       events: buildEvents(childGroups, raw, name),
+      slots: buildSlots(tag, slotsFile),
       imports: Object.keys(imports).length ? imports : undefined,
     };
     parent.subComponents = [...(parent.subComponents || []), child];

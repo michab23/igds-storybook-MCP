@@ -1,4 +1,5 @@
 import { StorybookFramework } from '../types.js';
+export declare const BASE_URL = "https://igds-storybook.globalbit.dev/develop";
 export interface ComponentProperty {
     name: string;
     type: string;

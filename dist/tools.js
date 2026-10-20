@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AgentDocsStore, bindingSyntaxFor, resolveEventName, isUndeclaredProp, methodCallHintFor, provenanceLine, resolvePropName, renderType, } from './agent-docs.js';
+import { AgentDocsStore, bindingSyntaxFor, resolveEventName, isUndeclaredProp, methodCallHintFor, slotHintFor, provenanceLine, resolvePropName, renderType, } from './agent-docs.js';
 import { DEFAULT_BUDGET, SMALL_BUDGET, codeBlock, join, limited, section, table, withinBudget, } from './format.js';
 const frameworkSchema = z.enum(['angular', 'react', 'core-web']);
 /**
@@ -186,14 +186,19 @@ function renderComponent(component, framework, full) {
     const methodsTable = component.methods?.length
         ? join(table(['method', 'description'], component.methods.map((method) => [`\`${method.signature}\``, method.description])), methodCallHintFor(framework))
         : undefined;
+    const slotNames = component.slots?.map((slot) => slot.name) || [];
+    const namedSlot = slotNames.find((name) => name !== 'default');
+    const slotsSection = slotNames.length
+        ? join(`## Slots`, slotNames.map((name) => `\`${name}\``).join(', '), namedSlot ? slotHintFor(framework, namedSlot) : undefined)
+        : undefined;
     const usage = component.usage.find((snippet) => snippet.framework === framework) || component.usage[0];
     // Composition children an agent needs in order to write the parent at all.
     const subComponents = (component.subComponents || []).map((child) => join(`### \`<${child.tag}>\``, child.imports?.[framework] ? `\`${child.imports[framework]}\`` : undefined, table(['prop', 'type', 'default'], child.props.map((prop) => [
         resolvePropName(prop, framework),
         renderType(prop),
         prop.default,
-    ])), child.events?.length ? `Events: ${child.events.map((event) => `\`${resolveEventName(event, framework)}\``).join(', ')}` : undefined));
-    return join(heading, facts, component.props.length ? join(`## Props (${component.props.length})`, propsTable, naming) : undefined, eventsTable ? join(`## Events`, eventsTable) : undefined, methodsTable ? join(`## Methods`, methodsTable) : undefined, subComponents.length ? join('## Child elements', ...subComponents) : undefined, usage ? section(`Usage — ${usage.story} (${usage.framework})`, codeBlock(usage.code)) : undefined, component.guidance
+    ])), child.events?.length ? `Events: ${child.events.map((event) => `\`${resolveEventName(event, framework)}\``).join(', ')}` : undefined, child.slots?.length ? `Slots: ${child.slots.map((slot) => `\`${slot.name}\``).join(', ')}` : undefined));
+    return join(heading, facts, component.props.length ? join(`## Props (${component.props.length})`, propsTable, naming) : undefined, eventsTable ? join(`## Events`, eventsTable) : undefined, methodsTable ? join(`## Methods`, methodsTable) : undefined, slotsSection, subComponents.length ? join('## Child elements', ...subComponents) : undefined, usage ? section(`Usage — ${usage.story} (${usage.framework})`, codeBlock(usage.code)) : undefined, component.guidance
         ? `_Design rules and accessibility: \`get-design-guidance("${component.name}")\`._`
         : undefined, component.refs.storybook[framework]
         ? `Storybook: ${component.refs.storybook[framework]}`

@@ -18,6 +18,7 @@ import { AgentDocsStore, reactEventPropFor, resolveEventName } from '../src/agen
 import { cleanSnippet } from '../src/snippet-clean.js';
 import { iconLookup, IconIndex } from '../src/icon-index.js';
 import { extractManifestModules, methodsFromManifest } from '../src/scrapers/manifest.js';
+import { extractSlots, extractTagTable } from '../src/scrapers/slots.js';
 import { SERVER_INFO } from '../src/server-info.js';
 
 /** Worst measured `get-component` response before this work, in characters. */
@@ -254,6 +255,22 @@ async function main(): Promise<void> {
     JSON.stringify(fakeModules && methodsFromManifest(fakeModules, 't').classes) === JSON.stringify({ A: { path: 'src/a.ts', methods: [{ name: 'go', signature: 'go(n?: number)' }] } }),
     'manifest extractor parses the embedded literal (braces, escaped backticks, private methods)',
     JSON.stringify(fakeModules && methodsFromManifest(fakeModules, 't').classes)
+  );
+
+  // #11: slots, read from the compiled templates.
+  const modal = await callTool('get-component', { component: 'Modal', framework: 'react' });
+  check(
+    /## Slots\n\n`default`, `footer`/.test(modal) && /<div slot="footer">/.test(modal),
+    'get-component lists slots with a usage hint'
+  );
+  const slotTags = extractTagTable(['t.modal="igds-modal",t.toolbar="igds-editor-toolbar",t.item="igds-toolbar-item"']);
+  const slotChunk =
+    'let e=class extends B{render(){return h`<slot name="footer" @slotchange=${x}></slot><slot></slot><slot name=${dyn}>`}};e=i([v(k.modal)],e);' +
+    'let ks=class extends B{render(){return h`<slot>`}};ks=$m([Pi(Bi.toolbar)],ks);let w=class extends B{};w=$m([Pi(Bi.item)],w);';
+  check(
+    JSON.stringify(extractSlots(slotChunk, slotTags)) === JSON.stringify({ 'igds-modal': ['default', 'footer'], 'igds-editor-toolbar': ['default'] }),
+    'slot extractor attributes slots to the right element ($-named decorators, dynamic names skipped)',
+    JSON.stringify(extractSlots(slotChunk, slotTags))
   );
 
   const missing = await callTool('get-component', { component: 'NoSuchComponent' });

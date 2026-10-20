@@ -209,4 +209,15 @@ export function methodCallHintFor(framework) {
             return '_Call on the element: `document.querySelector(\'igds-…\').show()`._';
     }
 }
+/** How to put content into a named slot in each framework. */
+export function slotHintFor(framework, example) {
+    switch (framework) {
+        case 'react':
+            return `_Put content in a named slot with the \`slot\` attribute on a child, e.g. \`<div slot="${example}">…</div>\`; \`default\` is the component's children._`;
+        case 'angular':
+            return `_Put content in a named slot with the \`slot\` attribute on a child, e.g. \`<div slot="${example}">…</div>\`; \`default\` is the projected content._`;
+        case 'core-web':
+            return `_Put content in a named slot with the \`slot\` attribute on a child, e.g. \`<div slot="${example}">…</div>\`; \`default\` is unslotted child content._`;
+    }
+}
 //# sourceMappingURL=agent-docs.js.map

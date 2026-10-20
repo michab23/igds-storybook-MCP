@@ -1,0 +1,140 @@
+{
+ "fetchedAt": "2026-10-20T06:43:51.021Z",
+ "slots": {
+  "igds-accordion": [
+   "default"
+  ],
+  "igds-accordion-item": [
+   "default"
+  ],
+  "igds-animate-height": [
+   "default"
+  ],
+  "igds-breadcrumb-item": [
+   "default"
+  ],
+  "igds-breadcrumbs": [
+   "default"
+  ],
+  "igds-button": [
+   "default",
+   "icon",
+   "second-icon"
+  ],
+  "igds-card": [
+   "default"
+  ],
+  "igds-carousel": [
+   "default",
+   "container-end",
+   "container-start"
+  ],
+  "igds-checkbox": [
+   "checkbox-icon",
+   "checkbox-label"
+  ],
+  "igds-checkbox-group": [
+   "default"
+  ],
+  "igds-default-error-box": [
+   "error-message"
+  ],
+  "igds-drawer": [
+   "default"
+  ],
+  "igds-editor-toolbar": [
+   "default"
+  ],
+  "igds-footer": [
+   "default",
+   "nav"
+  ],
+  "igds-header": [
+   "default",
+   "auth",
+   "bottom",
+   "extra-nav",
+   "hamburger",
+   "search"
+  ],
+  "igds-list-item": [
+   "default"
+  ],
+  "igds-menu": [
+   "menu-item",
+   "trigger"
+  ],
+  "igds-menu-item": [
+   "submenu-item"
+  ],
+  "igds-modal": [
+   "default",
+   "footer"
+  ],
+  "igds-pagination": [
+   "default"
+  ],
+  "igds-popup-menu": [
+   "default",
+   "trigger"
+  ],
+  "igds-popup-menu-item": [
+   "default"
+  ],
+  "igds-radio-group": [
+   "default"
+  ],
+  "igds-rich-text-editor": [
+   "toolbar"
+  ],
+  "igds-segment": [
+   "default",
+   "icon"
+  ],
+  "igds-segmented-control": [
+   "default"
+  ],
+  "igds-sidebar": [
+   "default",
+   "sidebar-item"
+  ],
+  "igds-sidebar-item": [
+   "sidebar-submenu-item"
+  ],
+  "igds-step-item": [
+   "default"
+  ],
+  "igds-tab-panel": [
+   "default"
+  ],
+  "igds-table": [
+   "default"
+  ],
+  "igds-table-cell": [
+   "default"
+  ],
+  "igds-table-row": [
+   "default"
+  ],
+  "igds-tabs": [
+   "default"
+  ],
+  "igds-tag": [
+   "default"
+  ],
+  "igds-tag-group": [
+   "default"
+  ],
+  "igds-toast": [
+   "default",
+   "title"
+  ],
+  "igds-toast-container": [
+   "default"
+  ],
+  "igds-tooltip": [
+   "default",
+   "content"
+  ]
+ }
+}

@@ -1,4 +1,5 @@
-const BASE_URL = 'https://igds-storybook.globalbit.dev/develop';
+import { extractManifestModules } from './manifest.js';
+export const BASE_URL = 'https://igds-storybook.globalbit.dev/develop';
 export async function fetchBundle(framework) {
     if (framework === 'angular') {
         const iframeUrl = `${BASE_URL}/${framework}/iframe.html?id=example-accordion--docs&viewMode=docs`;
@@ -218,30 +219,17 @@ function extractFromDocgenInfo(bundleCode) {
     }
     return components;
 }
-function extractFromMetadata(bundleCode, framework) {
+function extractFromMetadata(bundleCode, _framework) {
     const components = new Map();
-    // Find all component metadata objects
-    const metadataPattern = /\{"kind":"class","description":"[^"]*","name":"(\w+)","members":\[/g;
-    let match;
-    while ((match = metadataPattern.exec(bundleCode)) !== null) {
-        const className = match[1];
-        // Find the complete object by counting braces
-        let start = match.index;
-        let depth = 0;
-        let pos = start;
-        while (pos < bundleCode.length) {
-            if (bundleCode[pos] === '{')
-                depth++;
-            if (bundleCode[pos] === '}') {
-                depth--;
-                if (depth === 0)
-                    break;
-            }
-            pos++;
-        }
-        const jsonStr = bundleCode.substring(start, pos + 1);
-        try {
-            const metadata = JSON.parse(jsonStr);
+    // Parse the embedded manifest whole (see manifest.ts). The previous per-class brace scan
+    // ignored JSON strings, so any description containing `{` or `}` failed to parse and the
+    // class silently lost its events, descriptions and defaults.
+    for (const module of extractManifestModules(bundleCode) || []) {
+        for (const declaration of module.declarations || []) {
+            if (declaration.kind !== 'class')
+                continue;
+            const metadata = declaration;
+            const className = metadata.name;
             // This is a custom-elements manifest: it carries the descriptions, attribute names,
             // defaults, events and slots that agents need. Keep all of it — the previous version
             // discarded everything except name/type/attribute.
@@ -327,9 +315,6 @@ function extractFromMetadata(bundleCode, framework) {
                 constructorDefaults: Object.fromEntries(properties.map(p => [p.name, p.defaultValue || ''])),
                 isFormAssociated: false,
             });
-        }
-        catch (e) {
-            // Skip invalid JSON
         }
     }
     return components;

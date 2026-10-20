@@ -24,6 +24,11 @@ const OUTPUT_FILE = join(DATA_DIR, 'igds-agent-docs.json');
 const ICON_INDEX_FILE = join(DATA_DIR, 'icon-index.json');
 const MANIFEST_FILE = join(DATA_DIR, 'igds-manifest.json');
 const METHODS_FILE = join(DATA_DIR, 'component-methods.json');
+const SLOTS_FILE = join(DATA_DIR, 'igds-slots.json');
+function buildSlots(tag, slotsFile) {
+    const names = tag ? slotsFile?.slots[tag] : undefined;
+    return names?.length ? names.map((name) => ({ name })) : undefined;
+}
 /**
  * Curated method list joined with manifest signatures. A curated method the manifest no
  * longer has is skipped and reported, so a stale entry can't send agents to a dead API.
@@ -548,6 +553,9 @@ function main() {
         ? JSON.parse(readFileSync(MANIFEST_FILE, 'utf-8'))
         : null;
     const staleMethods = [];
+    const slotsFile = existsSync(SLOTS_FILE)
+        ? JSON.parse(readFileSync(SLOTS_FILE, 'utf-8'))
+        : null;
     // Mine attribute vocabulary once, across every story of every framework.
     const mined = new Map();
     for (const framework of FRAMEWORKS) {
@@ -659,6 +667,7 @@ function main() {
             props: buildProps(name, tag, raw, mined, parentGroups),
             events: buildEvents(parentGroups, raw, name),
             methods: buildMethods(tag, curatedMethods, manifestMethods, staleMethods),
+            slots: buildSlots(tag, slotsFile),
             usage: buildUsage(name, raw, lookupIcon),
             guidance,
             refs: {
@@ -667,7 +676,7 @@ function main() {
             },
         };
     }
-    const unattachedTags = attachSubComponents(components, mined, raw, packages);
+    const unattachedTags = attachSubComponents(components, mined, raw, packages, slotsFile);
     if (staleMethods.length) {
         console.warn(`  WARNING: curated methods missing from the manifest (skipped): ${staleMethods.join(', ')}`);
     }
@@ -687,7 +696,7 @@ function main() {
         schema: SCHEMA_VERSION,
         scrapedAt: raw.scrapedAt,
         builtAt: new Date().toISOString(),
-        source: { storybookChannel, verifiedAgainst: packages.verifiedAgainst, manifestFetchedAt: manifestMethods?.fetchedAt },
+        source: { storybookChannel, verifiedAgainst: packages.verifiedAgainst, manifestFetchedAt: manifestMethods?.fetchedAt, slotsFetchedAt: slotsFile?.fetchedAt },
         categories: [...categories].sort(),
         components,
         notes,
@@ -707,7 +716,7 @@ function pascalFromTag(tag) {
  * write an accordion without it. Attach every mined tag that has no entry of its own to
  * the documented component it composes with.
  */
-function attachSubComponents(components, mined, raw, packages) {
+function attachSubComponents(components, mined, raw, packages, slotsFile) {
     const documented = new Map();
     for (const component of Object.values(components)) {
         if (component.tag)
@@ -761,6 +770,7 @@ function attachSubComponents(components, mined, raw, packages) {
             tag,
             props,
             events: buildEvents(childGroups, raw, name),
+            slots: buildSlots(tag, slotsFile),
             imports: Object.keys(imports).length ? imports : undefined,
         };
         parent.subComponents = [...(parent.subComponents || []), child];
