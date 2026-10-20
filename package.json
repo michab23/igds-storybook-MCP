@@ -15,7 +15,8 @@
     "verify": "tsx scripts/verify.ts",
     "verify:http": "tsx scripts/verify-http.ts",
     "build:icons": "tsx scripts/build-icon-index.ts",
-    "scrape:manifest": "tsx scripts/fetch-manifest.ts"
+    "scrape:manifest": "tsx scripts/fetch-manifest.ts",
+    "scrape:zeroheight-text": "tsx scripts/refresh-zeroheight-text.ts"
   },
   "keywords": [
     "mcp",

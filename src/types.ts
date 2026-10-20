@@ -115,6 +115,8 @@ export interface ZeroheightComponent {
   slug: string;
   url: string;
   category: string;
+  /** The one-line description under the title (text refresh only; older scrapes lack it). */
+  summary?: string;
   storybookCrossRef?: {
     angular?: string;
     react?: string;

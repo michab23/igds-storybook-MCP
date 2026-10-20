@@ -100,7 +100,9 @@ const LEGACY_SOURCE_CAP = 3000;
  */
 function markTruncated(code: string, framework: Framework): string {
   const complete = code.slice(0, code.lastIndexOf('\n')).trimEnd();
-  const marker = framework === 'react' ? '{/* … truncated in the scraped source */}' : '<!-- … truncated in the scraped source -->';
+  // JSX comment only for JSX content: React stories without source fall back to HTML.
+  const jsx = framework === 'react' && /<[A-Z]|=\{/.test(complete);
+  const marker = jsx ? '{/* … truncated in the scraped source */}' : '<!-- … truncated in the scraped source -->';
   return `${complete}\n${marker}`;
 }
 
@@ -815,7 +817,9 @@ function main(): void {
     let guidance;
     if (zeroheightComponent) {
       const cleaned = cleanComponentSections(zeroheightComponent.sections, chrome, zeroheightComponent.name);
-      summary = cleaned.summary;
+      // The text refresh captures the description under the title directly; older scrapes
+      // only had it inside full-page text.
+      summary = zeroheightComponent.summary || cleaned.summary;
       guidance = extractGuidance(cleaned);
       if (zeroheightComponent.category) categories.add(zeroheightComponent.category);
     }

@@ -202,8 +202,11 @@ export function cleanSnippet(
     icons = [...new Set([...named, ...inlined])];
   }
 
+  // Comment syntax follows the snippet's content, not its framework label: a React story
+  // without source code falls back to rendered HTML (<igds-list>), where {/* */} is wrong.
+  const looksJsx = isJsx && /<[A-Z]|=\{/.test(result);
   result = collapseRepeatedSiblings(result, (n) =>
-    isJsx ? `{/* … ${n} more like the above */}` : `<!-- … ${n} more like the above -->`
+    looksJsx ? `{/* … ${n} more like the above */}` : `<!-- … ${n} more like the above -->`
   );
 
   if (icons.length) result = `// import { ${icons.sort().join(', ')} } from '@igds/icons';\n${result}`;

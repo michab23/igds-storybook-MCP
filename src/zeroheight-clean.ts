@@ -131,7 +131,32 @@ export function cleanComponentSections(
 
 const WHEN_NOT_MARKERS = /^(when to avoid|avoid|do ?n[o']t|when not to use|מתי להימנע|אין להשתמש)/i;
 const WHEN_TO_MARKERS = /^(when to use|use (it|this) when|מתי להשתמש)/i;
-const RTL_MARKERS = /(rtl|right[- ]to[- ]left|ltr|direction|עברית|ימין לשמאל)/i;
+// Word boundaries matter: a bare `ltr` matched "ultra-Orthodox".
+const RTL_MARKERS = /(\b(rtl|ltr)\b|right[- ]to[- ]left|text direction|\bdir=|עברית|ימין לשמאל)/i;
+/** Lines that start the next section: another marker, a "Do and Don'ts" block, or a short "Heading:". */
+const SECTION_BREAK = /^(when to (use|avoid)|when not to use|do'?s? (and|&) don'?ts?|best practices?|anatomy|states?|variants?|[^.]{2,40}:)$/i;
+
+/** Real accessibility guidance talks about these; an Anatomy list doesn't. */
+const A11Y_SIGNAL = /\b(keyboard|focus(?:able|ed)?|screen ?readers?|aria-[a-z]+|role=|wcag|contrast|tab key|enter or space|esc)\b/i;
+
+/** Accessibility guidance as served: its own lines, in order, duplicates and headings dropped. */
+export function accessibilityLines(body: string | undefined, maxChars = 1600): string[] {
+  if (!body || !A11Y_SIGNAL.test(body)) return [];
+  const lines: string[] = [];
+  const seen = new Set<string>();
+  let used = 0;
+  for (const raw of body.split('\n')) {
+    const line = raw.trim().replace(/\s+/g, ' ');
+    if (!line || /^accessib[a-z]*:?$/i.test(line)) continue;
+    const key = line.toLowerCase();
+    if (seen.has(key)) continue;
+    if (used + line.length > maxChars) break;
+    seen.add(key);
+    lines.push(line);
+    used += line.length;
+  }
+  return lines;
+}
 
 /** Bullet-ish lines: "Contrast Ratio: ..." or "1. ..." or "- ...". */
 function isBullet(line: string): boolean {
@@ -146,7 +171,8 @@ function takeAfterMarker(body: string, marker: RegExp, limit: number): string | 
   const collected: string[] = [];
   for (let i = start + 1; i < lines.length && collected.length < limit; i++) {
     const line = lines[i];
-    // Stop at the next section-looking heading.
+    // Stop at the next section-looking heading or marker, which belongs to another section.
+    if (SECTION_BREAK.test(line.trim()) || marker.test(line) || WHEN_NOT_MARKERS.test(line)) break;
     if (collected.length && /^[A-Z][\w ]{2,40}$/.test(line)) break;
     collected.push(line);
   }
@@ -168,17 +194,16 @@ export function extractGuidance(cleaned: CleanedSections): AgentGuidance | undef
     guidance.whenNotToUse ||= takeAfterMarker(body, WHEN_NOT_MARKERS, 4);
   }
 
-  const accessibilityBody = cleaned.bodies.accessibility || combined;
-  const a11y = accessibilityBody
-    .split('\n')
-    .filter((line) => isBullet(line) && line.length > 30)
-    .filter((line) => /(contrast|keyboard|focus|screen reader|aria|wcag|role|tab|נגישות|מקלדת)/i.test(line))
-    .slice(0, 6);
+  // Accessibility comes only from the component's own Accessibility tab. Never fall back
+  // to other sections: older scrapes stored another tab (or another component's page)
+  // there, and Anatomy lines like "Checkbox Button - Allows selecting a row" are not rules.
+  const a11y = accessibilityLines(cleaned.bodies.accessibility);
   if (a11y.length) guidance.a11y = a11y;
 
   const rtl = combined
     .split('\n')
-    .find((line) => RTL_MARKERS.test(line) && line.length > 30 && line.length < 300);
+    // Prose only: code blocks on the page also say dir="rtl".
+    .find((line) => RTL_MARKERS.test(line) && !/^\s*</.test(line) && line.length > 30 && line.length < 300);
   if (rtl) guidance.rtl = rtl;
 
   return Object.keys(guidance).length ? guidance : undefined;

@@ -194,6 +194,15 @@ npm run scrape:manifest
 npm run build:docs
 ```
 
+Design guidance (`get-design-guidance`) comes from the zeroheight design docs at igds.gov.il. Each component page has Design, Code, Usage and Accessibility tabs; the scraper reads each tab of *that* component, waits for it to render, and keeps only its content. To refresh that text without re-downloading the ~1,000 committed images:
+
+```bash
+npm run scrape:zeroheight-text
+npm run build:docs
+```
+
+Where IGDS publishes no accessibility guidance for a component, `get-design-guidance` says so and points to the matching WAI-ARIA Authoring Practices pattern.
+
 Behaviour an agent can't infer from props, events or snippets (Pagination items need a unique `href`, Dropdown emits `igds-change` when set from code, the default Modal footer always closes, …) is curated in [data/component-notes.json](data/component-notes.json). Each note was reproduced against the IGDS version in its `verifiedIn` field. `get-component` shows the notes before the usage snippet, so a response cut to fit its budget loses the snippet rather than the notes.
 
 ## Project layout

@@ -4,7 +4,7 @@ const BASE_URL = 'https://igds.gov.il/4988d5140';
 const IMAGES_DIR = join(process.cwd(), 'data', 'images', 'zeroheight');
 let browser = null;
 let currentPage = null;
-async function getBrowser() {
+export async function getBrowser() {
     if (currentPage)
         return currentPage;
     const { chromium } = await import('playwright');
@@ -170,34 +170,82 @@ export async function scrapeComponentSections(component) {
     }
     return component;
 }
-async function findSectionId(componentUrl, sectionName) {
+/**
+ * The section tabs of THIS component: links under its own path (`/p/06a72e-table/b/…`).
+ * Every zeroheight page also carries a site-wide sidebar listing Design/Code/Usage/
+ * Accessibility for every component, Button's first, so matching link text alone picked
+ * another component's sections.
+ */
+export async function findSectionLinks(componentUrl) {
     const p = await getBrowser();
     try {
         await p.goto(componentUrl, { waitUntil: 'networkidle', timeout: 30000 });
-        await p.waitForTimeout(2000);
-        const sectionId = await p.evaluate((name) => {
-            const links = Array.from(document.querySelectorAll('a[href*="/b/"]'));
-            for (const link of links) {
-                if (link.textContent?.trim().toLowerCase().includes(name.toLowerCase())) {
-                    const match = link.getAttribute('href')?.match(/\/b\/([a-f0-9]+)/);
-                    return match?.[1];
-                }
+        const path = new URL(componentUrl).pathname;
+        // The tab links render after networkidle; wait for them rather than a fixed delay.
+        await p.waitForSelector(`a[href*="${path}/b/"]`, { timeout: 15000 }).catch(() => undefined);
+        return await p.evaluate((ownPath) => {
+            const links = {};
+            for (const link of Array.from(document.querySelectorAll(`a[href*="${ownPath}/b/"]`))) {
+                const text = link.textContent?.trim().toLowerCase() || '';
+                const href = link.getAttribute('href');
+                if (href && text && !links[text])
+                    links[text] = new URL(href, location.origin).href;
             }
-            return undefined;
-        }, sectionName);
-        return sectionId;
+            return links;
+        }, path);
     }
-    catch (e) {
+    catch {
+        return {};
+    }
+}
+async function findSectionId(componentUrl, sectionName) {
+    const links = await findSectionLinks(componentUrl);
+    const match = Object.entries(links).find(([text]) => text.includes(sectionName.toLowerCase()));
+    return match?.[1].match(/\/b\/([a-f0-9]+)/)?.[1];
+}
+/**
+ * The tab bar every component page renders above its content. The sidebar also lists the
+ * current component's tabs with the same text, earlier on the page, so use the LAST match.
+ */
+const TAB_BAR = /\n(?:Design|Desing)\nCode\nUsage\nAccess[a-z]*\n/g;
+/**
+ * Wait for the section's own content, then return only it. Tab content renders after
+ * `networkidle`; the old fixed 2 s wait often captured the navigation and nothing else.
+ */
+/** The one-line description zeroheight shows under the title, just above the tab bar. */
+export async function readPageSummary(componentName) {
+    const p = await getBrowser();
+    const text = await p.evaluate(() => document.body.innerText || '');
+    const bar = [...text.matchAll(TAB_BAR)].pop();
+    if (!bar || bar.index === undefined)
         return undefined;
+    const line = text
+        .slice(0, bar.index)
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .pop();
+    return line && line.toLowerCase() !== componentName.toLowerCase() && line.length >= 20 ? line : undefined;
+}
+export async function readSectionText(timeoutMs = 15000) {
+    const p = await getBrowser();
+    const deadline = Date.now() + timeoutMs;
+    let previous = '';
+    while (Date.now() < deadline) {
+        const text = await p.evaluate(() => document.body.innerText || '');
+        const bar = [...text.matchAll(TAB_BAR)].pop();
+        const content = bar && bar.index !== undefined ? text.slice(bar.index + bar[0].length).trim() : '';
+        // Stable and non-trivial across two polls: the tab has finished rendering.
+        if (content.length > 40 && content === previous)
+            return content.slice(0, 20000);
+        previous = content;
+        await p.waitForTimeout(1000);
     }
+    return previous.slice(0, 20000);
 }
 async function extractSection(sectionType, componentName) {
     const p = await getBrowser();
-    const content = await p.evaluate(() => {
-        const body = document.body;
-        const text = body.innerText || '';
-        return text.substring(0, 10000);
-    });
+    const content = await readSectionText();
     const images = await p.evaluate(() => {
         const imgs = Array.from(document.querySelectorAll('img'));
         const imageUrls = [];
