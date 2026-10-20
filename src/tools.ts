@@ -8,6 +8,7 @@ import {
   resolveEventName,
   isUndeclaredProp,
   methodCallHintFor,
+  slotHintFor,
   provenanceLine,
   resolvePropName,
   renderType,
@@ -319,6 +320,16 @@ function renderComponent(component: AgentComponent, framework: Framework, full: 
       )
     : undefined;
 
+  const slotNames = component.slots?.map((slot) => slot.name) || [];
+  const namedSlot = slotNames.find((name) => name !== 'default');
+  const slotsSection = slotNames.length
+    ? join(
+        `## Slots`,
+        slotNames.map((name) => `\`${name}\``).join(', '),
+        namedSlot ? slotHintFor(framework, namedSlot) : undefined
+      )
+    : undefined;
+
   const usage = component.usage.find((snippet) => snippet.framework === framework) || component.usage[0];
 
   // Composition children an agent needs in order to write the parent at all.
@@ -334,7 +345,8 @@ function renderComponent(component: AgentComponent, framework: Framework, full: 
           prop.default,
         ])
       ),
-      child.events?.length ? `Events: ${child.events.map((event) => `\`${resolveEventName(event, framework)}\``).join(', ')}` : undefined
+      child.events?.length ? `Events: ${child.events.map((event) => `\`${resolveEventName(event, framework)}\``).join(', ')}` : undefined,
+      child.slots?.length ? `Slots: ${child.slots.map((slot) => `\`${slot.name}\``).join(', ')}` : undefined
     )
   );
 
@@ -344,6 +356,7 @@ function renderComponent(component: AgentComponent, framework: Framework, full: 
     component.props.length ? join(`## Props (${component.props.length})`, propsTable, naming) : undefined,
     eventsTable ? join(`## Events`, eventsTable) : undefined,
     methodsTable ? join(`## Methods`, methodsTable) : undefined,
+    slotsSection,
     subComponents.length ? join('## Child elements', ...subComponents) : undefined,
     usage ? section(`Usage — ${usage.story} (${usage.framework})`, codeBlock(usage.code)) : undefined,
     component.guidance

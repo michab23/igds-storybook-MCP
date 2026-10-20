@@ -71,6 +71,7 @@ export interface AgentSubComponent {
     props: AgentProp[];
     events?: AgentEvent[];
     methods?: AgentMethod[];
+    slots?: AgentSlot[];
     /** Child elements are deep-imported separately in Angular/React. */
     imports?: Partial<Record<Framework, string>>;
 }
@@ -103,6 +104,8 @@ export interface DataSource {
     verifiedAgainst?: string;
     /** When method signatures were read from the live custom-elements manifest. */
     manifestFetchedAt?: string;
+    /** When slot names were read from the live compiled templates. */
+    slotsFetchedAt?: string;
 }
 export interface AgentDocs {
     /** Schema version of this artifact, not the server version. */
@@ -184,4 +187,6 @@ export declare function provenanceLine(meta: {
 }): string;
 /** How to call an element method from each framework. */
 export declare function methodCallHintFor(framework: Framework): string;
+/** How to put content into a named slot in each framework. */
+export declare function slotHintFor(framework: Framework, example: string): string;
 //# sourceMappingURL=agent-docs.d.ts.map

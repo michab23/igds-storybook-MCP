@@ -1,6 +1,7 @@
 import { StorybookFramework } from '../types.js';
+import { extractManifestModules } from './manifest.js';
 
-const BASE_URL = 'https://igds-storybook.globalbit.dev/develop';
+export const BASE_URL = 'https://igds-storybook.globalbit.dev/develop';
 
 export interface ComponentProperty {
   name: string;
@@ -299,35 +300,18 @@ function extractFromDocgenInfo(bundleCode: string): Map<string, ComponentSource>
   return components;
 }
 
-function extractFromMetadata(bundleCode: string, framework: StorybookFramework): Map<string, ComponentSource> {
+function extractFromMetadata(bundleCode: string, _framework: StorybookFramework): Map<string, ComponentSource> {
   const components = new Map<string, ComponentSource>();
-  
-  // Find all component metadata objects
-  const metadataPattern = /\{"kind":"class","description":"[^"]*","name":"(\w+)","members":\[/g;
-  let match;
-  
-  while ((match = metadataPattern.exec(bundleCode)) !== null) {
-    const className = match[1];
-    
-    // Find the complete object by counting braces
-    let start = match.index!;
-    let depth = 0;
-    let pos = start;
-    
-    while (pos < bundleCode.length) {
-      if (bundleCode[pos] === '{') depth++;
-      if (bundleCode[pos] === '}') {
-        depth--;
-        if (depth === 0) break;
-      }
-      pos++;
-    }
-    
-    const jsonStr = bundleCode.substring(start, pos + 1);
-    
-    try {
-      const metadata = JSON.parse(jsonStr);
-      
+
+  // Parse the embedded manifest whole (see manifest.ts). The previous per-class brace scan
+  // ignored JSON strings, so any description containing `{` or `}` failed to parse and the
+  // class silently lost its events, descriptions and defaults.
+  for (const module of extractManifestModules(bundleCode) || []) {
+    for (const declaration of module.declarations || []) {
+      if (declaration.kind !== 'class') continue;
+      const metadata = declaration as any;
+      const className: string = metadata.name;
+
       // This is a custom-elements manifest: it carries the descriptions, attribute names,
       // defaults, events and slots that agents need. Keep all of it — the previous version
       // discarded everything except name/type/attribute.
@@ -395,7 +379,7 @@ function extractFromMetadata(bundleCode: string, framework: StorybookFramework):
           name: slot.name || 'default',
           description: slot.description,
         }));
-      
+    
       // Extract tag name from exports
       let tagName = `igds-${className.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '')}`;
       if (metadata.exports) {
@@ -405,7 +389,7 @@ function extractFromMetadata(bundleCode: string, framework: StorybookFramework):
           tagName = `igds-${className.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '')}`;
         }
       }
-      
+    
       components.set(className, {
         className,
         tagName,
@@ -418,11 +402,9 @@ function extractFromMetadata(bundleCode: string, framework: StorybookFramework):
         constructorDefaults: Object.fromEntries(properties.map(p => [p.name, p.defaultValue || ''])),
         isFormAssociated: false,
       });
-    } catch (e) {
-      // Skip invalid JSON
     }
   }
-  
+
   return components;
 }
 

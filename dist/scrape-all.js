@@ -2,6 +2,7 @@ import { chromium } from 'playwright';
 import { writeFileSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { fetchBundle, parseBundle } from './scrapers/bundle-parser.js';
+import { writeSlots } from './scrapers/slots.js';
 import { writeManifestMethods } from './scrapers/manifest.js';
 import { scrapeAllZeroheight } from './scrapers/zeroheight-scraper.js';
 import { mapCrossReferences } from './scrapers/cross-reference.js';
@@ -220,6 +221,7 @@ async function main() {
                 console.log(`  Found ${parsed.components.size} components in bundle`);
                 if (framework === 'core-web') {
                     console.log(`  Wrote method signatures for ${writeManifestMethods(bundleCode)} classes to data/igds-manifest.json`);
+                    await writeSlots(bundleCode, `${BASE_URL}/core-web/assets`);
                 }
                 // Convert to serializable format
                 for (const [name, source] of parsed.components) {

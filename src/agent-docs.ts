@@ -89,6 +89,7 @@ export interface AgentSubComponent {
   props: AgentProp[];
   events?: AgentEvent[];
   methods?: AgentMethod[];
+  slots?: AgentSlot[];
   /** Child elements are deep-imported separately in Angular/React. */
   imports?: Partial<Record<Framework, string>>;
 }
@@ -123,6 +124,8 @@ export interface DataSource {
   verifiedAgainst?: string;
   /** When method signatures were read from the live custom-elements manifest. */
   manifestFetchedAt?: string;
+  /** When slot names were read from the live compiled templates. */
+  slotsFetchedAt?: string;
 }
 
 export interface AgentDocs {
@@ -361,5 +364,17 @@ export function methodCallHintFor(framework: Framework): string {
       return '_Call on the element: `@ViewChild(...)` the component, then call the method on its `nativeElement`._';
     case 'core-web':
       return '_Call on the element: `document.querySelector(\'igds-…\').show()`._';
+  }
+}
+
+/** How to put content into a named slot in each framework. */
+export function slotHintFor(framework: Framework, example: string): string {
+  switch (framework) {
+    case 'react':
+      return `_Put content in a named slot with the \`slot\` attribute on a child, e.g. \`<div slot="${example}">…</div>\`; \`default\` is the component's children._`;
+    case 'angular':
+      return `_Put content in a named slot with the \`slot\` attribute on a child, e.g. \`<div slot="${example}">…</div>\`; \`default\` is the projected content._`;
+    case 'core-web':
+      return `_Put content in a named slot with the \`slot\` attribute on a child, e.g. \`<div slot="${example}">…</div>\`; \`default\` is unslotted child content._`;
   }
 }
