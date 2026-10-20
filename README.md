@@ -194,6 +194,8 @@ npm run scrape:manifest
 npm run build:docs
 ```
 
+Behaviour an agent can't infer from props, events or snippets (Pagination items need a unique `href`, Dropdown emits `igds-change` when set from code, the default Modal footer always closes, …) is curated in [data/component-notes.json](data/component-notes.json). Each note was reproduced against the IGDS version in its `verifiedIn` field. `get-component` shows the notes before the usage snippet, so a response cut to fit its budget loses the snippet rather than the notes.
+
 ## Project layout
 
 | Path | Purpose |

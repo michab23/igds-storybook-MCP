@@ -153,13 +153,18 @@ export function registerAllTools(server: McpServer): void {
       if (!found) return notFound(component, framework as Framework | undefined);
 
       const target = (framework as Framework | undefined) ?? found.frameworks[0];
-      const body = join(renderComponent(found, target, detail === 'full'), provenanceLine(store.meta()));
+      // The data line always survives: budget the body around it rather than cut it off.
+      const provenance = provenanceLine(store.meta());
+      const body = renderComponent(found, target, detail === 'full', store.meta().source?.notesVerifiedIn);
 
       return ok(
-        withinBudget(
-          body,
-          DEFAULT_BUDGET,
-          `Call get-component-examples("${found.name}") for more usage, or get-design-guidance("${found.name}") for design rules.`
+        join(
+          withinBudget(
+            body,
+            DEFAULT_BUDGET - provenance.length - 2,
+            `Call get-component-examples("${found.name}") for more usage, or get-design-guidance("${found.name}") for design rules.`
+          ),
+          provenance
         )
       );
     }
@@ -269,7 +274,7 @@ function firstRef(component: AgentComponent): string {
   return Object.values(component.refs.storybook)[0] || '';
 }
 
-function renderComponent(component: AgentComponent, framework: Framework, full: boolean): string {
+function renderComponent(component: AgentComponent, framework: Framework, full: boolean, notesVerifiedIn?: string): string {
   const heading = `# ${component.name}${component.tag ? ` \`<${component.tag}>\`` : ''}`;
 
   const facts = [
@@ -330,6 +335,15 @@ function renderComponent(component: AgentComponent, framework: Framework, full: 
       )
     : undefined;
 
+  // Placed before usage: if a response hits its budget, the snippet is cut, not these.
+  const notesSection = component.notes?.length
+    ? join(
+        '## Behaviour notes',
+        component.notes.map((note) => `- ${note}`).join('\n'),
+        notesVerifiedIn ? `_Reproduced against IGDS ${notesVerifiedIn}._` : undefined
+      )
+    : undefined;
+
   const usage = component.usage.find((snippet) => snippet.framework === framework) || component.usage[0];
 
   // Composition children an agent needs in order to write the parent at all.
@@ -357,6 +371,7 @@ function renderComponent(component: AgentComponent, framework: Framework, full: 
     eventsTable ? join(`## Events`, eventsTable) : undefined,
     methodsTable ? join(`## Methods`, methodsTable) : undefined,
     slotsSection,
+    notesSection,
     subComponents.length ? join('## Child elements', ...subComponents) : undefined,
     usage ? section(`Usage — ${usage.story} (${usage.framework})`, codeBlock(usage.code)) : undefined,
     component.guidance

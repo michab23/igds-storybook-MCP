@@ -45,10 +45,13 @@ export function join(...parts) {
 export function withinBudget(text, budget, moreHint) {
     if (text.length <= budget)
         return text;
-    const cut = text.slice(0, budget);
+    // The pointer counts against the budget too: cut early enough that it still fits.
+    const suffix = `\n\n_Truncated to stay within the context budget. ${moreHint}_`;
+    const room = Math.max(0, budget - suffix.length);
+    const cut = text.slice(0, room);
     const boundary = cut.lastIndexOf('\n');
-    const kept = boundary > budget * 0.6 ? cut.slice(0, boundary) : cut;
-    return `${kept}\n\n_Truncated to stay within the context budget. ${moreHint}_`;
+    const kept = boundary > room * 0.6 ? cut.slice(0, boundary) : cut;
+    return `${kept}${suffix}`;
 }
 /**
  * Trim a list to `limit` and say how many were withheld, so the agent knows the set is
