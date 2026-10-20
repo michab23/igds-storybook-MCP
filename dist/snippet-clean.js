@@ -135,7 +135,7 @@ function replaceInlineIcons(code, lookup) {
     result = result.replace(new RegExp(`(\\s[\\w-]+)="(${ICON_MARKUP}[^"]*)"`, 'g'), (whole, attr, markup) => swap(markup, (n) => `${attr}={${n}}`, whole));
     return { code: result, icons: [...icons] };
 }
-export function cleanSnippet(code, framework, componentName = '', lookupIcon = () => undefined) {
+export function cleanSnippet(code, framework, { componentName = '', lookupIcon = () => undefined, clickEmitters = new Set() } = {}) {
     // The legacy dynamic icon loads the whole icon registry at runtime; IGDS deprecates it.
     // Only its own component page may still show it.
     if (/<igds-dynamic-icon\b/.test(code) && !/dynamic\s*icon/i.test(componentName)) {
@@ -151,6 +151,8 @@ export function cleanSnippet(code, framework, componentName = '', lookupIcon = (
         // Kebab-case event props are a story-authoring slip; React listens via onIgds*.
         result = result.replace(/(\s)igds-([a-z-]+)=\{/g, (_m, space, rest) => `${space}onIgds${rest.split('-').map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join('')}={`);
         result = result.replace(/<React\.Fragment(?:\s+key="[^"]*")?\s*>/g, '<>').replace(/<\/React\.Fragment>/g, '</>');
+        // Native onClick on an IGDS wrapper bypasses the component's own igds-click contract.
+        result = result.replace(/<([A-Z]\w*)\b[^>]*?>/g, (tag, name) => clickEmitters.has(name) ? tag.replace(/(\s)onClick=\{/, '$1onIgdsClick={') : tag);
     }
     else {
         result = result.replace(/\s+style="[^"]*"/g, '');

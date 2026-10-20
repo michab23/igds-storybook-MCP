@@ -359,15 +359,21 @@ export function provenanceLine(meta: { scrapedAt: string; source?: DataSource })
   return `_Data: ${from}${verified}. If your installed IGDS differs, its typings win._`;
 }
 
-/** How to call an element method from each framework. */
-export function methodCallHintFor(framework: Framework): string {
+/**
+ * How to call an element method from each framework, using this component's own names:
+ * `reactName` is its React export (`Modal`, whose element class is exported as `ModalWC`),
+ * `tag` its custom element, and `call` an example call such as `requestClose()`.
+ */
+export function methodCallHintFor(framework: Framework, call: string, reactName?: string, tag?: string): string {
   switch (framework) {
     case 'react':
-      return '_Call on the element via a ref, e.g. `const ref = useRef<ToastWC>(null)` → `ref.current?.show()`. Each wrapper module exports its element class as `<Name>WC`._';
+      return reactName
+        ? `_Call on the element via a ref: \`const ref = useRef<${reactName}WC>(null)\` → \`ref.current?.${call}\`. \`${reactName}WC\` is exported next to \`${reactName}\`._`
+        : `_Call on the element via a ref: \`ref.current?.${call}\`._`;
     case 'angular':
-      return '_Call on the element: `@ViewChild(...)` the component, then call the method on its `nativeElement`._';
+      return `_Call on the element: \`@ViewChild(...)\` the component, then \`nativeElement.${call}\`._`;
     case 'core-web':
-      return '_Call on the element: `document.querySelector(\'igds-…\').show()`._';
+      return `_Call on the element: \`document.querySelector('${tag || 'igds-…'}').${call}\`._`;
   }
 }
 

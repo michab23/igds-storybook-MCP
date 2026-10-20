@@ -147,11 +147,19 @@ export interface CleanedSnippet {
   drop?: string;
 }
 
+export interface CleanOptions {
+  /** Docs-page name: only its own page may still show igds-dynamic-icon. */
+  componentName?: string;
+  /** Icon markup → @igds/icons export name. */
+  lookupIcon?: (markup: string) => string | undefined;
+  /** React wrappers that emit igds-click, whose native onClick should be onIgdsClick. */
+  clickEmitters?: ReadonlySet<string>;
+}
+
 export function cleanSnippet(
   code: string,
   framework: 'react' | 'angular' | 'core-web',
-  componentName = '',
-  lookupIcon: (markup: string) => string | undefined = () => undefined
+  { componentName = '', lookupIcon = () => undefined, clickEmitters = new Set() }: CleanOptions = {}
 ): CleanedSnippet {
   // The legacy dynamic icon loads the whole icon registry at runtime; IGDS deprecates it.
   // Only its own component page may still show it.
@@ -172,6 +180,10 @@ export function cleanSnippet(
       `${space}onIgds${rest.split('-').map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join('')}={`
     );
     result = result.replace(/<React\.Fragment(?:\s+key="[^"]*")?\s*>/g, '<>').replace(/<\/React\.Fragment>/g, '</>');
+    // Native onClick on an IGDS wrapper bypasses the component's own igds-click contract.
+    result = result.replace(/<([A-Z]\w*)\b[^>]*?>/g, (tag, name: string) =>
+      clickEmitters.has(name) ? tag.replace(/(\s)onClick=\{/, '$1onIgdsClick={') : tag
+    );
   } else {
     result = result.replace(/\s+style="[^"]*"/g, '');
   }

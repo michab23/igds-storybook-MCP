@@ -270,6 +270,11 @@ export function registerAllTools(server: McpServer): void {
   );
 }
 
+/** `openItem(id: string)` → `openItem(…)`; `show()` stays `show()`. */
+function exampleCall(method: { name: string; signature: string }): string {
+  return method.signature.startsWith(`${method.name}()`) ? `${method.name}()` : `${method.name}(…)`;
+}
+
 function firstRef(component: AgentComponent): string {
   return Object.values(component.refs.storybook)[0] || '';
 }
@@ -321,7 +326,12 @@ function renderComponent(component: AgentComponent, framework: Framework, full: 
   const methodsTable = component.methods?.length
     ? join(
         table(['method', 'description'], component.methods.map((method) => [`\`${method.signature}\``, method.description])),
-        methodCallHintFor(framework)
+        methodCallHintFor(
+          framework,
+          exampleCall(component.methods[0]),
+          component.imports?.react?.match(/import \{ (\w+)/)?.[1],
+          component.tag
+        )
       )
     : undefined;
 
