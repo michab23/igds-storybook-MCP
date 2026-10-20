@@ -87,8 +87,10 @@ export function registerAllTools(server) {
         if (!found)
             return notFound(component, framework);
         const target = framework ?? found.frameworks[0];
-        const body = join(renderComponent(found, target, detail === 'full'), provenanceLine(store.meta()));
-        return ok(withinBudget(body, DEFAULT_BUDGET, `Call get-component-examples("${found.name}") for more usage, or get-design-guidance("${found.name}") for design rules.`));
+        // The data line always survives: budget the body around it rather than cut it off.
+        const provenance = provenanceLine(store.meta());
+        const body = renderComponent(found, target, detail === 'full', store.meta().source?.notesVerifiedIn);
+        return ok(join(withinBudget(body, DEFAULT_BUDGET - provenance.length - 2, `Call get-component-examples("${found.name}") for more usage, or get-design-guidance("${found.name}") for design rules.`), provenance));
     });
     // --- get-component-examples ------------------------------------------------------
     server.tool('get-component-examples', 'Get usage code snippets for an IGDS component, taken from the design system\'s own stories. Returns code only — no rendered DOM, no CSS.', {
@@ -150,7 +152,7 @@ export function registerAllTools(server) {
 function firstRef(component) {
     return Object.values(component.refs.storybook)[0] || '';
 }
-function renderComponent(component, framework, full) {
+function renderComponent(component, framework, full, notesVerifiedIn) {
     const heading = `# ${component.name}${component.tag ? ` \`<${component.tag}>\`` : ''}`;
     const facts = [
         component.summary,
@@ -191,6 +193,10 @@ function renderComponent(component, framework, full) {
     const slotsSection = slotNames.length
         ? join(`## Slots`, slotNames.map((name) => `\`${name}\``).join(', '), namedSlot ? slotHintFor(framework, namedSlot) : undefined)
         : undefined;
+    // Placed before usage: if a response hits its budget, the snippet is cut, not these.
+    const notesSection = component.notes?.length
+        ? join('## Behaviour notes', component.notes.map((note) => `- ${note}`).join('\n'), notesVerifiedIn ? `_Reproduced against IGDS ${notesVerifiedIn}._` : undefined)
+        : undefined;
     const usage = component.usage.find((snippet) => snippet.framework === framework) || component.usage[0];
     // Composition children an agent needs in order to write the parent at all.
     const subComponents = (component.subComponents || []).map((child) => join(`### \`<${child.tag}>\``, child.imports?.[framework] ? `\`${child.imports[framework]}\`` : undefined, table(['prop', 'type', 'default'], child.props.map((prop) => [
@@ -198,7 +204,7 @@ function renderComponent(component, framework, full) {
         renderType(prop),
         prop.default,
     ])), child.events?.length ? `Events: ${child.events.map((event) => `\`${resolveEventName(event, framework)}\``).join(', ')}` : undefined, child.slots?.length ? `Slots: ${child.slots.map((slot) => `\`${slot.name}\``).join(', ')}` : undefined));
-    return join(heading, facts, component.props.length ? join(`## Props (${component.props.length})`, propsTable, naming) : undefined, eventsTable ? join(`## Events`, eventsTable) : undefined, methodsTable ? join(`## Methods`, methodsTable) : undefined, slotsSection, subComponents.length ? join('## Child elements', ...subComponents) : undefined, usage ? section(`Usage — ${usage.story} (${usage.framework})`, codeBlock(usage.code)) : undefined, component.guidance
+    return join(heading, facts, component.props.length ? join(`## Props (${component.props.length})`, propsTable, naming) : undefined, eventsTable ? join(`## Events`, eventsTable) : undefined, methodsTable ? join(`## Methods`, methodsTable) : undefined, slotsSection, notesSection, subComponents.length ? join('## Child elements', ...subComponents) : undefined, usage ? section(`Usage — ${usage.story} (${usage.framework})`, codeBlock(usage.code)) : undefined, component.guidance
         ? `_Design rules and accessibility: \`get-design-guidance("${component.name}")\`._`
         : undefined, component.refs.storybook[framework]
         ? `Storybook: ${component.refs.storybook[framework]}`

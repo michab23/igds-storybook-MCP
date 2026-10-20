@@ -88,6 +88,8 @@ export interface AgentComponent {
     events?: AgentEvent[];
     methods?: AgentMethod[];
     slots?: AgentSlot[];
+    /** Curated behaviour an agent can't infer from the API (data/component-notes.json). */
+    notes?: string[];
     usage: UsageSnippet[];
     subComponents?: AgentSubComponent[];
     guidance?: AgentGuidance;
@@ -106,6 +108,8 @@ export interface DataSource {
     manifestFetchedAt?: string;
     /** When slot names were read from the live compiled templates. */
     slotsFetchedAt?: string;
+    /** IGDS release the behaviour notes were reproduced against. */
+    notesVerifiedIn?: string;
 }
 export interface AgentDocs {
     /** Schema version of this artifact, not the server version. */

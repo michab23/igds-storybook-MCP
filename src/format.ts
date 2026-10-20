@@ -54,11 +54,14 @@ export function join(...parts: (string | undefined)[]): string {
 export function withinBudget(text: string, budget: number, moreHint: string): string {
   if (text.length <= budget) return text;
 
-  const cut = text.slice(0, budget);
+  // The pointer counts against the budget too: cut early enough that it still fits.
+  const suffix = `\n\n_Truncated to stay within the context budget. ${moreHint}_`;
+  const room = Math.max(0, budget - suffix.length);
+  const cut = text.slice(0, room);
   const boundary = cut.lastIndexOf('\n');
-  const kept = boundary > budget * 0.6 ? cut.slice(0, boundary) : cut;
+  const kept = boundary > room * 0.6 ? cut.slice(0, boundary) : cut;
 
-  return `${kept}\n\n_Truncated to stay within the context budget. ${moreHint}_`;
+  return `${kept}${suffix}`;
 }
 
 /**

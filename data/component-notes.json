@@ -1,0 +1,41 @@
+{
+  "_comment": "Behaviour an agent can't infer from props, events or snippets, by component tag. Each note was reproduced in Chromium against the IGDS version in verifiedIn and checked in the package source. Keep notes to one or two sentences: they share the get-component budget with the usage snippet. A tag that matches no component is reported at build time. Re-check notes when verifiedIn moves.",
+
+  "verifiedIn": "0.1.37",
+
+  "igds-pagination": [
+    "Each `PaginationItem` needs a unique, non-empty `href`; items without one are silently ignored and no page numbers render. There is no total-pages prop: pages = number of items.",
+    "`igds-change` detail.value is the page number as a string. Link clicks are preventDefault-ed, so route client-side in the handler.",
+    "Accessibility: internal labels are hard-coded English (\"Previous\", \"Next\", \"Pagination\") and disabled prev/next links have no `aria-disabled` (WCAG 2.5.3, 4.1.2)."
+  ],
+
+  "igds-dropdown": [
+    "Emits `igds-change` when `selected` is set programmatically, not only on user action. Ignore events whose value equals the current one, and keep the `selected` array's identity stable across renders, or a controlled Dropdown that writes to state or the URL loops forever.",
+    "Accessibility: the popup nests `listbox > [role=list] > option`, so options aren't owned by the listbox (axe critical), and the popup is named \"dropdown-popup\" in English."
+  ],
+
+  "igds-modal": [
+    "The default footer (`primaryActionLabel` / `secondaryActionLabel`) always closes the modal. To validate before closing, put your own buttons in the `footer` slot and control `open`.",
+    "Keyboard: backdrop clicks are detected by coordinates, and Enter/Space clicks report (0,0), so activating any button inside the modal by keyboard closes it. Stop clicks with `event.detail === 0` from bubbling out of your footer.",
+    "Slotted body and footer content stays in `igds-modal`'s light DOM, not inside the shadow `<dialog>`: query it through the `igds-modal` element in tests."
+  ],
+
+  "igds-toast": [
+    "`type=\"floating\"` toasts stay hidden until `show()`. `show()` moves the element into a shared `igds-toast-container` (an open `<dialog>`); `close()` moves it back, then emits `igds-close`. Remove a shown toast only after `igds-close`, or a framework that owns the node (React) breaks.",
+    "Accessibility: the close button is named \"Close toast\" in English whatever `closeActionLabel` says (WCAG 2.5.3)."
+  ],
+
+  "igds-badge": [
+    "Accessibility: `warning` and `success` text contrast is 3.85:1 and 3.43:1, below WCAG AA 4.5:1. Remap `--igds-light-base-color-text-warning` / `-success` to the `text-dark-*` tokens on the badge.",
+    "`label` is set as a property and not reflected to an attribute: attribute selectors in tests won't match it."
+  ],
+
+  "igds-search-field": [
+    "To use it as a plain filter, pass `suggestions={[]}` and `showEmptyResultsMessage={false}`.",
+    "Accessibility: the focusable input is named \"Input\" (and its wrapper \"search-input\"), so the placeholder text is never announced. Set an accessible name on the inner input."
+  ],
+
+  "igds-table": [
+    "Rows render from data (`TableRow cells`), with text, badge and link cells. A link cell with `isEmitEvent` emits its cell `id` via `igds-cell-link-click`, for client-side routing instead of a full page load."
+  ]
+}

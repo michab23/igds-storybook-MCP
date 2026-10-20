@@ -46,6 +46,7 @@ const ICON_INDEX_FILE = join(DATA_DIR, 'icon-index.json');
 const MANIFEST_FILE = join(DATA_DIR, 'igds-manifest.json');
 const METHODS_FILE = join(DATA_DIR, 'component-methods.json');
 const SLOTS_FILE = join(DATA_DIR, 'igds-slots.json');
+const NOTES_FILE = join(DATA_DIR, 'component-notes.json');
 
 type SlotsFile = { fetchedAt: string; slots: Record<string, string[]> };
 
@@ -714,6 +715,11 @@ function main(): void {
     ? (JSON.parse(readFileSync(MANIFEST_FILE, 'utf-8')) as ManifestMethodsFile)
     : null;
   const staleMethods: string[] = [];
+  const notesFile: Record<string, unknown> = existsSync(NOTES_FILE) ? JSON.parse(readFileSync(NOTES_FILE, 'utf-8')) : {};
+  const notesByTag = new Map(
+    Object.entries(notesFile).filter((entry): entry is [string, string[]] => entry[0].startsWith('igds-') && Array.isArray(entry[1]))
+  );
+  const notesVerifiedIn = typeof notesFile.verifiedIn === 'string' ? notesFile.verifiedIn : undefined;
   const slotsFile: SlotsFile | null = existsSync(SLOTS_FILE)
     ? (JSON.parse(readFileSync(SLOTS_FILE, 'utf-8')) as SlotsFile)
     : null;
@@ -847,6 +853,7 @@ function main(): void {
       events: buildEvents(parentGroups, raw, name),
       methods: buildMethods(tag, curatedMethods, manifestMethods, staleMethods),
       slots: buildSlots(tag, slotsFile),
+      notes: tag ? notesByTag.get(tag) : undefined,
       usage: buildUsage(name, raw, lookupIcon),
       guidance,
       refs: {
@@ -857,6 +864,11 @@ function main(): void {
   }
 
   const unattachedTags = attachSubComponents(components, mined, raw, packages, slotsFile);
+  const knownTags = new Set(Object.values(components).map((component) => component.tag));
+  const orphanNotes = [...notesByTag.keys()].filter((tag) => !knownTags.has(tag));
+  if (orphanNotes.length) {
+    console.warn(`  WARNING: behaviour notes for tags no component has (not served): ${orphanNotes.join(', ')}`);
+  }
   if (staleMethods.length) {
     console.warn(`  WARNING: curated methods missing from the manifest (skipped): ${staleMethods.join(', ')}`);
   }
@@ -885,7 +897,7 @@ function main(): void {
     schema: SCHEMA_VERSION,
     scrapedAt: raw.scrapedAt,
     builtAt: new Date().toISOString(),
-    source: { storybookChannel, verifiedAgainst: packages.verifiedAgainst, manifestFetchedAt: manifestMethods?.fetchedAt, slotsFetchedAt: slotsFile?.fetchedAt },
+    source: { storybookChannel, verifiedAgainst: packages.verifiedAgainst, manifestFetchedAt: manifestMethods?.fetchedAt, slotsFetchedAt: slotsFile?.fetchedAt, notesVerifiedIn },
     categories: [...categories].sort(),
     components,
     notes,

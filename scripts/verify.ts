@@ -196,13 +196,19 @@ async function main(): Promise<void> {
   let worst = { name: '', size: 0 };
   let leaked = '';
 
+  // Every framework and detail level: budgets must hold for the longest variant, not
+  // just the default one (Dropdown's Angular answer is the longest get-component).
   for (const component of components) {
-    const text = await callTool('get-component', { component: component.name });
-    sizes.push(text.length);
-    if (text.length > worst.size) worst = { name: component.name, size: text.length };
+    for (const framework of ['react', 'core-web', 'angular'] as const) {
+      for (const detail of ['compact', 'full'] as const) {
+        const text = await callTool('get-component', { component: component.name, framework, detail });
+        if (framework === 'react' && detail === 'compact') sizes.push(text.length);
+        if (text.length > worst.size) worst = { name: `${component.name} (${framework}, ${detail})`, size: text.length };
 
-    for (const banned of BANNED_SUBSTRINGS) {
-      if (text.includes(banned)) leaked = `${component.name}: ${banned}`;
+        for (const banned of BANNED_SUBSTRINGS) {
+          if (text.includes(banned)) leaked = `${component.name}: ${banned}`;
+        }
+      }
     }
   }
 
@@ -271,6 +277,23 @@ async function main(): Promise<void> {
     JSON.stringify(extractSlots(slotChunk, slotTags)) === JSON.stringify({ 'igds-modal': ['default', 'footer'], 'igds-editor-toolbar': ['default'] }),
     'slot extractor attributes slots to the right element ($-named decorators, dynamic names skipped)',
     JSON.stringify(extractSlots(slotChunk, slotTags))
+  );
+
+  // #12: curated behaviour notes, ahead of the usage snippet so budget cuts never drop them.
+  const notesFile = JSON.parse(readFileSync(join(process.cwd(), 'data', 'component-notes.json'), 'utf-8')) as Record<string, unknown>;
+  const noteTags = Object.keys(notesFile).filter((key) => key.startsWith('igds-'));
+  const orphanNotes = noteTags.filter((tag) => !components.some((component) => component.tag === tag));
+  check(!orphanNotes.length, 'every behaviour note belongs to a served component', orphanNotes.join(', '));
+  const pagination = await callTool('get-component', { component: 'Pagination', framework: 'react' });
+  check(
+    /## Behaviour notes[\s\S]*unique, non-empty `href`[\s\S]*_Reproduced against IGDS 0\.1\.37\._[\s\S]*## Usage/.test(pagination),
+    'get-component shows behaviour notes before usage, with the verified version'
+  );
+  const longest = await callTool('get-component', { component: 'Dropdown', framework: 'angular' });
+  check(
+    /## Behaviour notes/.test(longest) && /_Data: IGDS Storybook/.test(longest) && longest.length <= MAX_RESPONSE,
+    'a truncated response keeps its notes and data line within budget',
+    `${longest.length} chars`
   );
 
   const missing = await callTool('get-component', { component: 'NoSuchComponent' });
