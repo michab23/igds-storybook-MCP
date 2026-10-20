@@ -25,5 +25,7 @@ export declare function cleanSection(content: string, chrome: Set<string>, compo
 export declare function cleanComponentSections(sections: Partial<Record<ZeroheightSectionName, {
     content: string;
 }>>, chrome: Set<string>, componentName: string): CleanedSections;
+/** Accessibility guidance as served: its own lines, in order, duplicates and headings dropped. */
+export declare function accessibilityLines(body: string | undefined, maxChars?: number): string[];
 export declare function extractGuidance(cleaned: CleanedSections): AgentGuidance | undefined;
 //# sourceMappingURL=zeroheight-clean.d.ts.map

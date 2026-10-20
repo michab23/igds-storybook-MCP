@@ -322,6 +322,25 @@ async function main(): Promise<void> {
   const guidance = await callTool('get-design-guidance', { component: 'Button' });
   check(/Accessibility|When not to use/.test(guidance), 'guidance returns design rules');
 
+  // #13: accessibility guidance is the component's own, deduplicated, and absence is explicit.
+  const tableGuidance = await callTool('get-design-guidance', { component: 'Table' });
+  check(
+    /## Accessibility[\s\S]*Tab key/.test(tableGuidance) && !/Checkbox Button - Allows selecting a row/.test(tableGuidance),
+    'Table guidance is its accessibility tab, not its anatomy list'
+  );
+  const duplicated = components.filter((component) => {
+    const lines = component.guidance?.a11y || [];
+    return new Set(lines.map((line) => line.toLowerCase())).size !== lines.length;
+  });
+  check(!duplicated.length, 'accessibility guidance has no duplicate lines', duplicated.map((c) => c.name).join(', '));
+  const withoutA11y = components.find((component) => !component.guidance?.a11y?.length);
+  if (withoutA11y) {
+    const text = await callTool('get-design-guidance', { component: withoutA11y.name });
+    check(/IGDS publishes no accessibility guidance for/.test(text), 'missing accessibility guidance is stated explicitly', withoutA11y.name);
+  }
+  const htmlInReact = cleanSnippet(['<igds-list>', ...Array.from({ length: 5 }, () => '  <igds-list-item></igds-list-item>'), '</igds-list>'].join('\n'), 'react').code;
+  check(/<!-- … 3 more like the above -->/.test(htmlInReact), 'HTML content gets HTML comments even under a React label', JSON.stringify(htmlInReact));
+
   await client.close();
 
   console.log(failures ? `\n${failures} check(s) failed.` : '\nAll checks passed.');

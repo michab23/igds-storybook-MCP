@@ -131,10 +131,11 @@ export function registerAllTools(server) {
             return notFound(component);
         const guidance = found.guidance;
         if (!guidance) {
-            return ok(`No design guidance recorded for ${found.name}.` +
-                (found.refs.zeroheight ? ` Design docs: ${found.refs.zeroheight}` : ''));
+            return ok(join(`No design guidance recorded for ${found.name}.` + (found.refs.zeroheight ? ` Design docs: ${found.refs.zeroheight}` : ''), noA11yGuidance(found)));
         }
-        const body = join(`# ${found.name} — design guidance`, found.summary, section('When to use', guidance.whenToUse), section('When not to use', guidance.whenNotToUse), section('Accessibility', guidance.a11y?.map((item) => `- ${item}`).join('\n')), section('RTL', guidance.rtl), found.refs.zeroheight ? `Source: ${found.refs.zeroheight}` : undefined);
+        const body = join(`# ${found.name} — design guidance`, found.summary, section('When to use', guidance.whenToUse), section('When not to use', guidance.whenNotToUse), section('Accessibility', guidance.a11y?.length
+            ? guidance.a11y.map((item) => (/:$/.test(item) ? `**${item}**` : `- ${item}`)).join('\n')
+            : noA11yGuidance(found)), section('RTL', guidance.rtl), found.refs.zeroheight ? `Source: ${found.refs.zeroheight}` : undefined);
         return ok(withinBudget(body, SMALL_BUDGET, `Full docs: ${found.refs.zeroheight || firstRef(found)}`));
     });
     // --- resource: freshness metadata ------------------------------------------------
@@ -152,6 +153,29 @@ export function registerAllTools(server) {
 /** `openItem(id: string)` → `openItem(…)`; `show()` stays `show()`. */
 function exampleCall(method) {
     return method.signature.startsWith(`${method.name}()`) ? `${method.name}()` : `${method.name}(…)`;
+}
+/** WAI-ARIA Authoring Practices pattern to fall back on, for components IGDS leaves undocumented. */
+const APG_PATTERNS = [
+    [/modal|drawer/i, 'Dialog (Modal): https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/'],
+    [/dropdown|popup menu/i, 'Combobox / Listbox: https://www.w3.org/WAI/ARIA/apg/patterns/combobox/'],
+    [/tabs/i, 'Tabs: https://www.w3.org/WAI/ARIA/apg/patterns/tabs/'],
+    [/accordion/i, 'Accordion: https://www.w3.org/WAI/ARIA/apg/patterns/accordion/'],
+    [/table/i, 'Table / Grid: https://www.w3.org/WAI/ARIA/apg/patterns/grid/'],
+    [/tooltip/i, 'Tooltip: https://www.w3.org/WAI/ARIA/apg/patterns/tooltip/'],
+    [/menu|sidebar|header/i, 'Menu / Disclosure navigation: https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/'],
+    [/radio/i, 'Radio Group: https://www.w3.org/WAI/ARIA/apg/patterns/radio/'],
+    [/checkbox/i, 'Checkbox: https://www.w3.org/WAI/ARIA/apg/patterns/checkbox/'],
+    [/slider/i, 'Slider: https://www.w3.org/WAI/ARIA/apg/patterns/slider/'],
+    [/toggle|switch/i, 'Switch: https://www.w3.org/WAI/ARIA/apg/patterns/switch/'],
+    [/carousel/i, 'Carousel: https://www.w3.org/WAI/ARIA/apg/patterns/carousel/'],
+    [/breadcrumb/i, 'Breadcrumb: https://www.w3.org/WAI/ARIA/apg/patterns/breadcrumb/'],
+    [/toast|banner/i, 'Alert: https://www.w3.org/WAI/ARIA/apg/patterns/alert/'],
+];
+/** Say plainly that IGDS publishes nothing here, rather than serve a thin section that looks complete. */
+function noA11yGuidance(component) {
+    const pattern = APG_PATTERNS.find(([match]) => match.test(component.name))?.[1];
+    return (`_IGDS publishes no accessibility guidance for ${component.name}._` +
+        (pattern ? ` Follow the WAI-ARIA Authoring Practices pattern — ${pattern}` : ' Apply WCAG 2.2 AA and verify with axe and keyboard testing.'));
 }
 function firstRef(component) {
     return Object.values(component.refs.storybook)[0] || '';
